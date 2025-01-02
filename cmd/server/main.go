@@ -4,46 +4,37 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/lenarlenar/go-my-metrics-service/internal/db"
 )
 
-type MemStorage struct {
-	Gauge map[string]float64
-	Counter map[string]int64
-}
+var memStorage db.MemStorage
 
-type MetricsDB interface {
-	SetGauge(n string, v float64)
-	AddCounter(n string, v int64)
-}
-
-func (m *MemStorage) SetGauge(n string, v float64) {
-	m.Gauge[n] = v
-}
-
-func (m *MemStorage) AddCounter(n string, v int64) {
-	val, ok := m.Counter[n]
-	if ok {
-		m.Counter[n] = val + v
-	} else {
-		m.Counter[n] =  v
-	}
-}
-
-var memStorage MemStorage
 func main() {
-	memStorage = MemStorage {map[string]float64{}, map[string]int64{}}
-	if err := run(); err != nil {
+	memStorage = db.MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}}
+	if err := runServer(); err != nil {
 		panic(err)
 	}
 }
 
-func run() error {
+func runServer() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc(`/update/`, defaultHandler)
-	return http.ListenAndServe(":8080", mux)
+
+	server := &http.Server{
+        Addr:           ":8080",
+        Handler:        mux,
+        ReadTimeout:    5 * time.Second,
+        WriteTimeout:   10 * time.Second,
+        IdleTimeout:    15 * time.Second,
+    }
+
+	return server.ListenAndServe()
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
+
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -75,4 +66,6 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Unknown metric name", http.StatusBadRequest)
 	}
+
+	w.Write([]byte("Запрос успешно обработан"))
 }
