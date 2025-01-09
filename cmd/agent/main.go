@@ -1,22 +1,31 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"math/rand/v2"
 	"runtime"
 	"time"
-	"github.com/lenarlenar/go-my-metrics-service/internal/db"
+
 	"github.com/go-resty/resty/v2"
+	"github.com/lenarlenar/go-my-metrics-service/internal/db"
 )
 
 var memStorage db.MemStorage
-
+var reportInterval int
+var pollInterval int
+var serverAddress string
 
 func main() {
 
-    urlGaugePattern := "http://localhost:8080/update/gauge/%s/%f"
-    urlCounterPattern := "http://localhost:8080/update/counter/%s/%d"
+	flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
+	flag.IntVar(&reportInterval, "r", 10, "reportInterval")
+	flag.IntVar(&pollInterval, "p", 2, "pollInterval")
+	flag.Parse()
+
+    urlGaugePattern := "http://%s/update/gauge/%s/%f"
+    urlCounterPattern := "http://%s/update/counter/%s/%d"
 	memStorage = db.MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}}
 	tickerUpdateMetrics:= startUpdateRuntimeMetrics()
     defer tickerUpdateMetrics.Stop()
@@ -24,21 +33,21 @@ func main() {
     for {
 		memStorage.Mutex.Lock()
         for key, value := range memStorage.Gauge {
-            url := fmt.Sprintf(urlGaugePattern, key, value)
+            url := fmt.Sprintf(urlGaugePattern, serverAddress, key, value)
 			go sendPostRequest(url)
 		}
 		for key, value := range memStorage.Counter {
-            url := fmt.Sprintf(urlCounterPattern, key, value)
+            url := fmt.Sprintf(urlCounterPattern, serverAddress, key, value)
 			go sendPostRequest(url)
 		}
 		memStorage.Mutex.Unlock()
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Duration(reportInterval) * time.Second)
     }
 }
 
 func startUpdateRuntimeMetrics() *time.Ticker  {
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
 
 	go func() {
 		for range ticker.C {

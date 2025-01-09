@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,13 +11,18 @@ import (
 )
 
 var memStorage db.MemStorage
+var serverAddress string
 
 func main() {
+
+	flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
+	flag.Parse()
+
 	memStorage = db.MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}}
 	router := gin.Default()
 	router.POST("/update/:type/:name/:value", updateHandler)
 	router.GET("/value/:type/:name/", valueHandler)
-	router.Run()
+	router.Run(serverAddress)
 }
 
 func valueHandler(c *gin.Context) {
