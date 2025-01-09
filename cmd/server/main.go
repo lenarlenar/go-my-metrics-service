@@ -5,18 +5,32 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-
 	"github.com/gin-gonic/gin"
 	"github.com/lenarlenar/go-my-metrics-service/internal/db"
+	"github.com/caarlos0/env/v6"
+    "log"
 )
 
 var memStorage db.MemStorage
 var serverAddress string
 
+type EnvConfig struct {
+    ServerAddress string `env:"ADDRESS"`
+}
+
 func main() {
 
-	flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
-	flag.Parse()
+	var envConfig EnvConfig
+    if err := env.Parse(&envConfig); err != nil {
+        log.Fatal(err)
+    }
+
+	if envConfig.ServerAddress == "" {
+		flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
+		flag.Parse()
+	} else {
+		serverAddress = envConfig.ServerAddress
+	}
 
 	memStorage = db.MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}}
 	router := gin.Default()

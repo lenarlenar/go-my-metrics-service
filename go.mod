@@ -33,6 +33,8 @@ require (
 )
 
 require (
+	github.com/caarlos0/env v3.5.0+incompatible
+	github.com/caarlos0/env/v6 v6.10.1
 	github.com/gin-gonic/gin v1.10.0
 	golang.org/x/net v0.27.0 // indirect
 )

@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/caarlos0/env"
 	"github.com/go-resty/resty/v2"
 	"github.com/lenarlenar/go-my-metrics-service/internal/db"
 )
@@ -17,12 +18,35 @@ var reportInterval int
 var pollInterval int
 var serverAddress string
 
+type EnvConfig struct {
+    ServerAddress string `env:"ADDRESS"`
+	ReportInterval int `env:"REPORT_INTERVAL"`
+	PollInterval int `env:"POLL_INTERVAL"`
+}
+
 func main() {
+
+	var envConfig EnvConfig
+    if err := env.Parse(&envConfig); err != nil {
+        log.Fatal(err)
+    }
 
 	flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
 	flag.IntVar(&reportInterval, "r", 10, "reportInterval")
 	flag.IntVar(&pollInterval, "p", 2, "pollInterval")
 	flag.Parse()
+
+	if envConfig.ServerAddress != "" {
+		serverAddress = envConfig.ServerAddress
+	}
+
+	if envConfig.PollInterval != 0 {
+		pollInterval = envConfig.PollInterval
+	}
+
+	if envConfig.ReportInterval != 0 {
+		reportInterval = envConfig.ReportInterval
+	}
 
     urlGaugePattern := "http://%s/update/gauge/%s/%f"
     urlCounterPattern := "http://%s/update/counter/%s/%d"
