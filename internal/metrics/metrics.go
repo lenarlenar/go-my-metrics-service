@@ -1,48 +1,15 @@
-package main
+package metrics
 
 import (
-	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/caarlos0/env/v6"
 	"github.com/gin-gonic/gin"
-	"github.com/lenarlenar/go-my-metrics-service/internal/db"
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
 )
 
-var memStorage interfaces.MetricsDB
-var serverAddress string
-
-type EnvConfig struct {
-	ServerAddress string `env:"ADDRESS"`
-}
-
-func main() {
-
-	var envConfig EnvConfig
-	if err := env.Parse(&envConfig); err != nil {
-		log.Fatal(err)
-	}
-
-	if envConfig.ServerAddress == "" {
-		flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
-		flag.Parse()
-	} else {
-		serverAddress = envConfig.ServerAddress
-	}
-
-	memStorage = &db.MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}}//db.NewMemStorage()
-	router := gin.Default()
-	router.POST("/update/:type/:name/:value", UpdateHandler)
-
-	router.GET("/value/:type/:name/", ValueHandler)
-	router.Run(serverAddress)
-}
-
-func ValueHandler(c *gin.Context) {
+func ValueHandler(c *gin.Context, memStorage interfaces.MetricsDB) {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
 
@@ -64,7 +31,7 @@ func ValueHandler(c *gin.Context) {
 	}
 }
 
-func UpdateHandler(c *gin.Context) {
+func UpdateHandler(c *gin.Context, memStorage interfaces.MetricsDB) {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
