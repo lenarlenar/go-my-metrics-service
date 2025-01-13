@@ -15,69 +15,69 @@ import (
 )
 
 var memStorage interfaces.MetricsDB
-var reportInterval time.Duration
-var pollInterval time.Duration
+var reportInterval int
+var pollInterval int
 var serverAddress string
 
 type EnvConfig struct {
-	ServerAddress  string        `env:"ADDRESS"`
-	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
-	PollInterval   time.Duration `env:"POLL_INTERVAL"`
+    ServerAddress string `env:"ADDRESS"`
+	ReportInterval int `env:"REPORT_INTERVAL"`
+	PollInterval int `env:"POLL_INTERVAL"`
 }
 
 func main() {
 
 	var envConfig EnvConfig
-	if err := env.Parse(&envConfig); err != nil {
-		log.Fatal(err)
-	}
+    if err := env.Parse(&envConfig); err != nil {
+        log.Fatal(err)
+    }
 
 	flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
-	flag.DurationVar(&reportInterval, "r", 10, "reportInterval")
-	flag.DurationVar(&pollInterval, "p", 2, "pollInterval")
+	flag.IntVar(&reportInterval, "r", 10, "reportInterval")
+	flag.IntVar(&pollInterval, "p", 2, "pollInterval")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
 		serverAddress = envConfig.ServerAddress
 	}
 
-	if envConfig.PollInterval > 0 {
+	if envConfig.PollInterval != 0 {
 		pollInterval = envConfig.PollInterval
 	}
 
-	if envConfig.ReportInterval > 0 {
+	if envConfig.ReportInterval != 0 {
 		reportInterval = envConfig.ReportInterval
 	}
 
-	urlGaugePattern := "http://%s/update/gauge/%s/%f"
-	urlCounterPattern := "http://%s/update/counter/%s/%d"
-	memStorage = &db.MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}} //db.NewMemStorage()
-	tickerUpdateMetrics := startUpdateRuntimeMetrics()
-	defer tickerUpdateMetrics.Stop()
+    urlGaugePattern := "http://%s/update/gauge/%s/%f"
+    urlCounterPattern := "http://%s/update/counter/%s/%d"
+	memStorage = db.NewMemStorage()
+	tickerUpdateMetrics:= startUpdateRuntimeMetrics()
+    defer tickerUpdateMetrics.Stop()
 
-	for {
-		for key, value := range memStorage.GetGauge() {
-			url := fmt.Sprintf(urlGaugePattern, serverAddress, key, value)
+    for {
+        for key, value := range memStorage.GetGauge() {
+            url := fmt.Sprintf(urlGaugePattern, serverAddress, key, value)
 			go sendPostRequest(url)
 		}
 		for key, value := range memStorage.GetCounter() {
-			url := fmt.Sprintf(urlCounterPattern, serverAddress, key, value)
+            url := fmt.Sprintf(urlCounterPattern, serverAddress, key, value)
 			go sendPostRequest(url)
 		}
-		time.Sleep(reportInterval * time.Second)
-	}
+		time.Sleep(time.Duration(reportInterval) * time.Second)
+    }
 }
 
-func startUpdateRuntimeMetrics() *time.Ticker {
+func startUpdateRuntimeMetrics() *time.Ticker  {
 
-	ticker := time.NewTicker(pollInterval * time.Second)
+	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
 
 	go func() {
 		for range ticker.C {
 			updateRuntimeMetrics()
-		}
+        }
 	}()
-	return ticker
+    return ticker
 }
 
 func sendPostRequest(url string) {
@@ -85,7 +85,7 @@ func sendPostRequest(url string) {
 	client := resty.New()
 	resp, err := client.R().
 		SetHeader("Content-Type", "text/plain").
-		Post(url)
+        Post(url)
 
 	if err != nil {
 		log.Printf("Ошибка при отправке запроса: %v", err)
