@@ -2,13 +2,15 @@ package main
 
 import (
 	"flag"
-	"log"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/gin-gonic/gin"
+	"github.com/lenarlenar/go-my-metrics-service/internal/logger"
 	"github.com/lenarlenar/go-my-metrics-service/internal/repo"
 	"github.com/lenarlenar/go-my-metrics-service/internal/service"
+	
 )
+
 
 var serverAddress string
 
@@ -17,9 +19,12 @@ type EnvConfig struct {
 }
 
 func main() {
+
+
+	localLogger := logger.GetLogger()
 	var envConfig EnvConfig
 	if err := env.Parse(&envConfig); err != nil {
-		log.Fatal(err)
+		localLogger.Fatalw(err.Error(), "event", "parse env")
 	}
 
 	if envConfig.ServerAddress == "" {
@@ -31,9 +36,19 @@ func main() {
 
 	storage := repo.NewStorage()
 	metricsService := service.NewService(storage)
-	router := gin.Default()
+	
+	router := gin.New()
+	router.Use(localLogger.GetMiddleware())
 	router.GET("/", metricsService.IndexHandler)
 	router.GET("/value/:type/:name/", metricsService.ValueHandler)
 	router.POST("/update/:type/:name/:value", metricsService.UpdateHandler)
-	router.Run(serverAddress)
+
+	localLogger.Infoln(
+		"Starting server",
+		"addr", serverAddress,
+	)
+
+	if err := router.Run(serverAddress); err != nil {
+		localLogger.Fatalw(err.Error(), "event", "start server")
+	}
 }
