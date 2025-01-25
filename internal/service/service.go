@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
+	"github.com/lenarlenar/go-my-metrics-service/internal/model"
 )
 
 type MetricsService struct {
@@ -20,11 +21,14 @@ func NewService(s interfaces.Storage) *MetricsService {
 func (s *MetricsService) IndexHandler(c *gin.Context) {
 
 	tableRows := ""
-	for k, v := range s.memStorage.GetCounter() {
-		tableRows += "<tr><td>" + k + "</td><td>" + fmt.Sprintf("%d", v) + "</td></tr>"
-	}
-	for k, v := range s.memStorage.GetGauge() {
-		tableRows += "<tr><td>" + k + "</td><td>" + fmt.Sprintf("%g", v) + "</td></tr>"
+
+	for k, v := range s.memStorage.GetMetrics() {
+		switch v.MType {
+		case "gauge":
+			tableRows += "<tr><td>" + k + "</td><td>" + fmt.Sprintf("%g", *v.Value) + "</td></tr>"
+		case "counter":
+			tableRows += "<tr><td>" + k + "</td><td>" + fmt.Sprintf("%d", *v.Delta) + "</td></tr>"
+		}
 	}
 
 	htmlContent := `
@@ -64,21 +68,17 @@ func (s *MetricsService) ValueHandler(c *gin.Context) {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
 
-	switch metricType {
-	case "gauge":
-		if val, ok := s.memStorage.GetGauge()[metricName]; ok {
-			c.String(http.StatusOK, fmt.Sprintf("%g", val))
+	if metric, ok := s.memStorage.GetMetrics()[metricName]; ok {
+		var value string
+		if metricType == "gauge" {
+			value = fmt.Sprintf("%g", *metric.Value)
 		} else {
-			c.String(http.StatusNotFound, "Unknown metric name")
+			value = fmt.Sprintf("%d", *metric.Delta)
 		}
-	case "counter":
-		if val, ok := s.memStorage.GetCounter()[metricName]; ok {
-			c.String(http.StatusOK, fmt.Sprintf("%d", val))
-		} else {
-			c.String(http.StatusNotFound, "Unknown metric name")
-		}
-	default:
-		c.String(http.StatusNotFound, "Unknown metric type")
+
+		c.String(http.StatusOK, value)
+	} else {
+		c.String(http.StatusNotFound, "Unknown metric name")
 	}
 }
 
@@ -105,4 +105,38 @@ func (s *MetricsService) UpdateHandler(c *gin.Context) {
 	}
 
 	c.String(http.StatusOK, "Запрос успешно обработан")
+}
+
+func (s *MetricsService) ValueJSONHandler(c *gin.Context) {
+	var requestMetric model.Metrics
+	if err := c.ShouldBindJSON(&requestMetric); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if metric, ok := s.memStorage.GetMetrics()[requestMetric.ID]; ok {
+		c.JSON(http.StatusOK, metric)
+	} else {
+		c.JSON(http.StatusNotFound, "Unknown metric name")
+	}
+}
+
+func (s *MetricsService) UpdateJSONHandler(c *gin.Context) {
+	var metric model.Metrics
+	if err := c.ShouldBindJSON(&metric); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	switch metric.MType {
+	case "gauge":
+		s.memStorage.SetGauge(metric.ID, *metric.Value)
+	case "counter":
+		s.memStorage.AddCounter(metric.ID, *metric.Delta)
+	default:
+		c.JSON(http.StatusBadRequest, "Unknown metric name")
+	}
+
+	updatedMetric := s.memStorage.GetMetrics()[metric.ID]
+	c.JSON(http.StatusOK, updatedMetric)
 }

@@ -8,9 +8,7 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/logger"
 	"github.com/lenarlenar/go-my-metrics-service/internal/repo"
 	"github.com/lenarlenar/go-my-metrics-service/internal/service"
-	
 )
-
 
 var serverAddress string
 
@@ -19,7 +17,6 @@ type EnvConfig struct {
 }
 
 func main() {
-
 
 	localLogger := logger.GetLogger()
 	var envConfig EnvConfig
@@ -36,10 +33,12 @@ func main() {
 
 	storage := repo.NewStorage()
 	metricsService := service.NewService(storage)
-	
+
 	router := gin.New()
 	router.Use(localLogger.GetMiddleware())
 	router.GET("/", metricsService.IndexHandler)
+	router.POST("/value/", metricsService.ValueJSONHandler)
+	router.POST("/update/", metricsService.UpdateJSONHandler)
 	router.GET("/value/:type/:name/", metricsService.ValueHandler)
 	router.POST("/update/:type/:name/:value", metricsService.UpdateHandler)
 

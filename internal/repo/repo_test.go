@@ -9,7 +9,7 @@ type Pair struct {
 
 func TestStorage(t *testing.T) {
 
-	memStorage := MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}}
+	memStorage := NewStorage()
 
 	tests := []struct {
 		name   string
@@ -29,9 +29,9 @@ func TestStorage(t *testing.T) {
 				memStorage.SetGauge(p.a, p.b)
 			}
 
-			value := memStorage.Gauge[test.values[0].a]
-			if value != test.want {
-				t.Errorf("test.values[0].a = %f, want %f", value, test.want)
+			metric := memStorage.GetMetrics()[test.values[0].a]
+			if *metric.Value != test.want {
+				t.Errorf("test.values[0].a = %f, want %f", *metric.Value, test.want)
 			}
 		})
 	}

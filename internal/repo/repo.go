@@ -1,45 +1,43 @@
 package repo
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/lenarlenar/go-my-metrics-service/internal/model"
+)
 
 type MemStorage struct {
-	Mutex   sync.Mutex
-	Gauge   map[string]float64
-	Counter map[string]int64
+	mutex   sync.Mutex
+	metrics map[string]model.Metrics
 }
 
 func NewStorage() *MemStorage {
 	return &MemStorage{
-		Gauge:   make(map[string]float64),
-		Counter: make(map[string]int64),
+		metrics:  make(map[string]model.Metrics),
 	}
 }
 
-func (m *MemStorage) GetCounter() map[string]int64 {
-	m.Mutex.Lock()
-	defer m.Mutex.Unlock()
-	return m.Counter
-}
-
-func (m *MemStorage) GetGauge() map[string]float64 {
-	m.Mutex.Lock()
-	defer m.Mutex.Unlock()
-	return m.Gauge
+func (m *MemStorage) GetMetrics() map[string]model.Metrics {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return m.metrics
 }
 
 func (m *MemStorage) SetGauge(n string, v float64) {
-	m.Mutex.Lock()
-	m.Gauge[n] = v
-	m.Mutex.Unlock()
+	m.mutex.Lock()
+	m.metrics[n] = model.Metrics{ID:n, MType: "gauge", Value: &v}
+	m.mutex.Unlock()
 }
 
 func (m *MemStorage) AddCounter(n string, v int64) {
-	m.Mutex.Lock()
-	val, ok := m.Counter[n]
+	m.mutex.Lock()
+	oldMetric, ok := m.metrics[n]
 	if ok {
-		m.Counter[n] = val + v
+		newDelta := *oldMetric.Delta + v
+		updatedMetric := model.Metrics{ID:n, MType: "counter", Delta: &newDelta}
+		m.metrics[n] = updatedMetric
 	} else {
-		m.Counter[n] = v
+		m.metrics[n] = model.Metrics{ID:n, MType: "counter", Delta: &v}
 	}
-	m.Mutex.Unlock()
+	m.mutex.Unlock()
 }

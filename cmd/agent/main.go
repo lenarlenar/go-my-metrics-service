@@ -28,7 +28,7 @@ func main() {
 	metricsCollector := collector.NewCollector(storage)
 	ticker := metricsCollector.StartCollectAndUpdate(flags.pollInterval)
 	defer ticker.Stop()
-	sender.NewSender(storage).Run(flags.reportInterval, flags.serverAddress)
+	sender.NewSender(flags.serverAddress, storage).Run(flags.reportInterval)
 }
 
 func getFlags() Flags {

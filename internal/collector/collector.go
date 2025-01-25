@@ -45,6 +45,7 @@ func updateMetrics(memStorage interfaces.Storage) {
 	memStorage.SetGauge("LastGC", float64(m.LastGC))
 	memStorage.SetGauge("Lookups", float64(m.Lookups))
 	memStorage.SetGauge("MCacheInuse", float64(m.MCacheInuse))
+	memStorage.SetGauge("MCacheSys", float64(m.MCacheSys))
 	memStorage.SetGauge("MSpanInuse", float64(m.MSpanInuse))
 	memStorage.SetGauge("MSpanSys", float64(m.MSpanSys))
 	memStorage.SetGauge("Mallocs", float64(m.Mallocs))
