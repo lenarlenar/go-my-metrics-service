@@ -2,12 +2,18 @@ package main
 
 import (
 	"flag"
-	"log"
 
 	"github.com/caarlos0/env"
 	"github.com/lenarlenar/go-my-metrics-service/internal/collector"
+	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/repo"
 	"github.com/lenarlenar/go-my-metrics-service/internal/sender"
+)
+
+const (
+	defaultServerAddress = "localhost:8080"
+	defaultReportInterval = 10
+	defaultPollInterval = 2
 )
 
 type EnvConfig struct {
@@ -34,12 +40,12 @@ func main() {
 func getFlags() Flags {
 	var envConfig EnvConfig
 	if err := env.Parse(&envConfig); err != nil {
-		log.Fatal(err)
+		log.I().Fatal(err)
 	}
 
-	serverAddress := flag.String("a", "localhost:8080", "HTTP server network address")
-	reportInterval := flag.Int("r", 10, "Send data interval")
-	pollInterval := flag.Int("p", 2, "Update data interval")
+	serverAddress := flag.String("a", defaultServerAddress, "HTTP server network address")
+	reportInterval := flag.Int("r", defaultReportInterval, "Send data interval")
+	pollInterval := flag.Int("p", defaultPollInterval, "Update data interval")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
