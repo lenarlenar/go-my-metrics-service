@@ -38,6 +38,7 @@ func main() {
 	router := gin.New()
 	router.Use(middleware.Logger())
 	router.Use(middleware.GzipCompression())
+	router.Use(middleware.GzipUnpack())
 	router.GET("/", metricsService.IndexHandler)
 	router.POST("/value/", metricsService.ValueJSONHandler)
 	router.POST("/update/", metricsService.UpdateJSONHandler)
