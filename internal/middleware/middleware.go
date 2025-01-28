@@ -49,26 +49,26 @@ func GzipCompression() gin.HandlerFunc {
 }
 
 type GzipReader struct {
-    io.ReadCloser
-    reader *gzip.Reader
+	io.ReadCloser
+	reader *gzip.Reader
 }
 
 func (g *GzipReader) Read(p []byte) (int, error) {
-    return g.reader.Read(p)
+	return g.reader.Read(p)
 }
 
 func GzipUnpack() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        if strings.Contains(c.GetHeader("Content-Encoding"), "gzip") {
-            gz, err := gzip.NewReader(c.Request.Body)
-            if err != nil {
-                c.AbortWithStatus(http.StatusBadRequest)
-                return
-            }
-            defer gz.Close()
+	return func(c *gin.Context) {
+		if strings.Contains(c.GetHeader("Content-Encoding"), "gzip") {
+			gz, err := gzip.NewReader(c.Request.Body)
+			if err != nil {
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			defer gz.Close()
 
-            c.Request.Body = &GzipReader{c.Request.Body, gz}
-        }
-        c.Next()
-    }
+			c.Request.Body = &GzipReader{c.Request.Body, gz}
+		}
+		c.Next()
+	}
 }

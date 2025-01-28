@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	defaultServerAddress = "localhost:8080"
+	defaultServerAddress  = "localhost:8080"
 	defaultReportInterval = 10
-	defaultPollInterval = 2
+	defaultPollInterval   = 2
 )
 
 type EnvConfig struct {
@@ -43,9 +43,9 @@ func getFlags() Flags {
 		log.I().Fatal(err)
 	}
 
-	serverAddress := flag.String("a", defaultServerAddress, "HTTP server network address")
-	reportInterval := flag.Int("r", defaultReportInterval, "Send data interval")
-	pollInterval := flag.Int("p", defaultPollInterval, "Update data interval")
+	serverAddress := flag.String("a", defaultServerAddress, "Адрес сервера")
+	reportInterval := flag.Int("r", defaultReportInterval, "Интервал отправки на сервер")
+	pollInterval := flag.Int("p", defaultPollInterval, "Интервал локального обновления данных")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
