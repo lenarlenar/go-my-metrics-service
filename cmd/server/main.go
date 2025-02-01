@@ -2,86 +2,87 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"net/http"
-	"strconv"
-	"github.com/gin-gonic/gin"
-	"github.com/lenarlenar/go-my-metrics-service/internal/db"
+	"os"
+
 	"github.com/caarlos0/env/v6"
-    "log"
+	"github.com/gin-gonic/gin"
+	"github.com/lenarlenar/go-my-metrics-service/internal/log"
+	"github.com/lenarlenar/go-my-metrics-service/internal/middleware"
+	"github.com/lenarlenar/go-my-metrics-service/internal/repo"
+	"github.com/lenarlenar/go-my-metrics-service/internal/service"
 )
 
-var memStorage db.MemStorage
-var serverAddress string
+const (
+	defaultServerAddress   = "localhost:8080"
+	defaultStoreInterval   = 300
+	defaultFileStoragePath = "metrics.json"
+	defaultRestore         = true
+)
+
+var (
+	serverAddress   string
+	storeInterval   int
+	fileStoragePath string
+	restore         bool
+)
 
 type EnvConfig struct {
-    ServerAddress string `env:"ADDRESS"`
+	ServerAddress   string `env:"ADDRESS"`
+	StoreInterval   int    `env:"STORE_INTERVAL"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	Restore         bool   `env:"RESTORE"`
 }
 
 func main() {
-
 	var envConfig EnvConfig
-    if err := env.Parse(&envConfig); err != nil {
-        log.Fatal(err)
-    }
+	if err := env.Parse(&envConfig); err != nil {
+		log.I().Fatalw(err.Error(), "event", "parse env")
+	}
 
-	if envConfig.ServerAddress == "" {
-		flag.StringVar(&serverAddress, "a", "localhost:8080", "HTTP server network address")
-		flag.Parse()
-	} else {
+	flag.StringVar(&serverAddress, "a", defaultServerAddress, "Адрес сервера")
+	flag.IntVar(&storeInterval, "i", defaultStoreInterval, "Интервал сохранения в файл")
+	flag.StringVar(&fileStoragePath, "f", defaultFileStoragePath, "Путь к файлу")
+	flag.BoolVar(&restore, "r", defaultRestore, "Загружать или нет ранее сохраненные файлы")
+	flag.Parse()
+
+	if envConfig.ServerAddress != "" {
 		serverAddress = envConfig.ServerAddress
 	}
 
-	memStorage = db.MemStorage{Gauge: map[string]float64{}, Counter: map[string]int64{}}
-	router := gin.Default()
-	router.POST("/update/:type/:name/:value", updateHandler)
-	router.GET("/value/:type/:name/", valueHandler)
-	router.Run(serverAddress)
-}
-
-func valueHandler(c *gin.Context) {
-	metricType := c.Param("type")
-	metricName := c.Param("name")
-
-	switch metricType {
-	case "gauge":
-		if val, ok := memStorage.Gauge[metricName]; ok {
-			c.String(http.StatusOK, fmt.Sprintf("%g", val))
-		} else {
-			c.String(http.StatusNotFound, "Unknown metric name")
-		}
-	case "counter":
-		if val, ok := memStorage.Counter[metricName]; ok {
-			c.String(http.StatusOK, fmt.Sprintf("%d", val))
-		} else {
-			c.String(http.StatusNotFound, "Unknown metric name")	
-		}
-	default:
-		c.String(http.StatusNotFound, "Unknown metric type")
-	}
-}
-
-func updateHandler(c *gin.Context) {
-	metricType := c.Param("type")
-	metricName := c.Param("name")
-	metricValue := c.Param("value")
-
-	switch metricType {
-	case "gauge":
-		if metricValue, err := strconv.ParseFloat(metricValue, 64); err != nil {
-			c.String(http.StatusBadRequest, "Value must be float64")
-		} else {
-			memStorage.SetGauge(metricName, metricValue)
-		}
-	case "counter":
-		if metricValue, err := strconv.ParseInt(metricValue, 0, 64); err != nil {
-			c.String(http.StatusBadRequest, "Value must be int64")
-		} else {
-			memStorage.AddCounter(metricName, metricValue)
-		}
-	default:
-		c.String(http.StatusBadRequest, "Unknown metric name")
+	if _, isSet := os.LookupEnv("STORE_INTERVAL"); isSet {
+		storeInterval = envConfig.StoreInterval
+	} else if storeInterval < 0 {
+		storeInterval = defaultStoreInterval
 	}
 
-	c.String(http.StatusOK, "Запрос успешно обработан")
+	if envConfig.FileStoragePath != "" {
+		fileStoragePath = envConfig.FileStoragePath
+	}
+
+	if _, isSet := os.LookupEnv("RESTORE"); isSet {
+		restore = envConfig.Restore
+	}
+
+	storage := repo.NewStorage()
+	storage.EnableFileBackup(fileStoragePath, storeInterval, restore)
+	metricsService := service.NewService(storage)
+
+	router := gin.New()
+	router.Use(middleware.Logger())
+	router.Use(middleware.GzipCompression())
+	router.Use(middleware.GzipUnpack())
+	router.GET("/", metricsService.IndexHandler)
+	router.POST("/value/", metricsService.ValueJSONHandler)
+	router.POST("/update/", metricsService.UpdateJSONHandler)
+	router.GET("/value/:type/:name/", metricsService.ValueHandler)
+	router.POST("/update/:type/:name/:value", metricsService.UpdateHandler)
+
+	log.I().Infoln(
+		"Starting server",
+		"addr", serverAddress,
+	)
+
+	if err := router.Run(serverAddress); err != nil {
+		log.I().Fatalw(err.Error(), "event", "start server")
+	}
 }
