@@ -6,6 +6,7 @@ import (
 
 	"github.com/caarlos0/env/v6"
 	"github.com/gin-gonic/gin"
+	"github.com/lenarlenar/go-my-metrics-service/internal/filestore"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/middleware"
 	"github.com/lenarlenar/go-my-metrics-service/internal/repo"
@@ -64,7 +65,8 @@ func main() {
 	}
 
 	storage := repo.NewStorage()
-	storage.EnableFileBackup(fileStoragePath, storeInterval, restore)
+	fileStore := filestore.FileStore{Storage: storage}
+	fileStore.Enable(fileStoragePath, storeInterval, restore)
 	metricsService := service.NewService(storage)
 
 	router := gin.New()
