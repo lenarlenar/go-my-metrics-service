@@ -18,6 +18,7 @@ const (
 	defaultStoreInterval   = 300
 	defaultFileStoragePath = "metrics.json"
 	defaultRestore         = true
+	defaultDatabaseDSN     = "host=localhost port=5432 user=postgres password=admin dbname=postgres sslmode=disable"
 )
 
 var (
@@ -25,6 +26,7 @@ var (
 	storeInterval   int
 	fileStoragePath string
 	restore         bool
+	databaseDSN     string
 )
 
 type EnvConfig struct {
@@ -32,6 +34,7 @@ type EnvConfig struct {
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 func main() {
@@ -44,6 +47,7 @@ func main() {
 	flag.IntVar(&storeInterval, "i", defaultStoreInterval, "Интервал сохранения в файл")
 	flag.StringVar(&fileStoragePath, "f", defaultFileStoragePath, "Путь к файлу")
 	flag.BoolVar(&restore, "r", defaultRestore, "Загружать или нет ранее сохраненные файлы")
+	flag.StringVar(&databaseDSN, "d", defaultDatabaseDSN, "Загружать или нет ранее сохраненные файлы")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
@@ -64,7 +68,11 @@ func main() {
 		restore = envConfig.Restore
 	}
 
-	storage := repo.NewStorage()
+	if envConfig.DatabaseDSN != "" {
+		databaseDSN = envConfig.DatabaseDSN
+	}
+
+	storage := repo.NewStorage(databaseDSN)
 	fileStore := filestore.FileStore{Storage: storage}
 	fileStore.Enable(fileStoragePath, storeInterval, restore)
 	metricsService := service.NewService(storage)
@@ -74,6 +82,7 @@ func main() {
 	router.Use(middleware.GzipCompression())
 	router.Use(middleware.GzipUnpack())
 	router.GET("/", metricsService.IndexHandler)
+	router.GET("/ping", metricsService.PingHandler)
 	router.POST("/value/", metricsService.ValueJSONHandler)
 	router.POST("/update/", metricsService.UpdateJSONHandler)
 	router.GET("/value/:type/:name/", metricsService.ValueHandler)

@@ -1,18 +1,31 @@
 package repo
 
 import (
+	"database/sql"
+	"fmt"
 	"sync"
+
 	"github.com/lenarlenar/go-my-metrics-service/internal/model"
+	_ "github.com/lib/pq"
 )
 
 type MemStorage struct {
-	mutex   sync.Mutex
-	metrics map[string]model.Metrics
+	mutex       sync.Mutex
+	metrics     map[string]model.Metrics
+	DB          sql.DB
+	databaseDSN string
 }
 
-func NewStorage() *MemStorage {
-	return &MemStorage{
-		metrics: make(map[string]model.Metrics),
+func NewStorage(databaseDSN ...string) *MemStorage {
+	if len(databaseDSN) > 0 {
+		return &MemStorage{
+			metrics:     make(map[string]model.Metrics),
+			databaseDSN: databaseDSN[0],
+		}
+	} else {
+		return &MemStorage{
+			metrics: make(map[string]model.Metrics),
+		}
 	}
 }
 
@@ -45,4 +58,13 @@ func (m *MemStorage) AddCounter(n string, v int64) {
 		m.metrics[n] = model.Metrics{ID: n, MType: "counter", Delta: &v}
 	}
 	m.mutex.Unlock()
+}
+
+func (m *MemStorage) Ping() error {
+	db, err := sql.Open("postgres", m.databaseDSN)
+	if err != nil {
+		return fmt.Errorf("ошибка при попытке подключиться к базе данных: %w", err)
+	}
+
+	return db.Ping()
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
+	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/model"
 )
 
@@ -16,6 +17,17 @@ type MetricsService struct {
 
 func NewService(s interfaces.Storage) *MetricsService {
 	return &MetricsService{memStorage: s}
+}
+
+func (s *MetricsService) PingHandler(c *gin.Context) {
+	err := s.memStorage.Ping()
+	if err != nil  {
+		log.I().Warnf("Ошибка при попытке вызова петода Ping к базе данных: %v", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+
+	c.String(http.StatusOK, "pong")
 }
 
 func (s *MetricsService) IndexHandler(c *gin.Context) {
