@@ -1,8 +1,7 @@
-package repo
+package storage
 
 import (
-	"database/sql"
-	"fmt"
+	"errors"
 	"sync"
 
 	"github.com/lenarlenar/go-my-metrics-service/internal/model"
@@ -10,22 +9,13 @@ import (
 )
 
 type MemStorage struct {
-	mutex       sync.Mutex
-	metrics     map[string]model.Metrics
-	DB          sql.DB
-	databaseDSN string
+	mutex   sync.Mutex
+	metrics map[string]model.Metrics
 }
 
-func NewStorage(databaseDSN ...string) *MemStorage {
-	if len(databaseDSN) > 0 {
-		return &MemStorage{
-			metrics:     make(map[string]model.Metrics),
-			databaseDSN: databaseDSN[0],
-		}
-	} else {
-		return &MemStorage{
-			metrics: make(map[string]model.Metrics),
-		}
+func NewMemStorage() *MemStorage {
+	return &MemStorage{
+		metrics: make(map[string]model.Metrics),
 	}
 }
 
@@ -61,10 +51,5 @@ func (m *MemStorage) AddCounter(n string, v int64) {
 }
 
 func (m *MemStorage) Ping() error {
-	db, err := sql.Open("postgres", m.databaseDSN)
-	if err != nil {
-		return fmt.Errorf("ошибка при попытке подключиться к базе данных: %w", err)
-	}
-
-	return db.Ping()
+	return errors.New("метод Ping() не определен для данного типа хранилища")
 }
