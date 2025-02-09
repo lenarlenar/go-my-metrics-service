@@ -25,12 +25,6 @@ func (m *MemStorage) GetMetrics() map[string]model.Metrics {
 	return m.metrics
 }
 
-func (m *MemStorage) SetMetrics(metrics map[string]model.Metrics) {
-	m.mutex.Lock()
-	m.metrics = metrics
-	m.mutex.Unlock()
-}
-
 func (m *MemStorage) SetGauge(n string, v float64) {
 	m.mutex.Lock()
 	m.metrics[n] = model.Metrics{ID: n, MType: "gauge", Value: &v}

@@ -50,12 +50,6 @@ func (fs *FileStorage) GetMetrics() map[string]model.Metrics {
 	return fs.metrics
 }
 
-func (fs *FileStorage) SetMetrics(metrics map[string]model.Metrics) {
-	fs.mutex.Lock()
-	fs.metrics = metrics
-	fs.mutex.Unlock()
-}
-
 func (fs *FileStorage) SetGauge(n string, v float64) {
 	fs.mutex.Lock()
 	fs.metrics[n] = model.Metrics{ID: n, MType: "gauge", Value: &v}
@@ -115,6 +109,8 @@ func (fs *FileStorage) load(file *os.File) {
 				return
 			}
 		}
-		fs.SetMetrics(metrics)
+		fs.mutex.Lock()
+		fs.metrics = metrics
+		fs.mutex.Unlock()
 	}
 }
