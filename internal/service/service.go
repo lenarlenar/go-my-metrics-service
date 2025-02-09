@@ -139,7 +139,6 @@ func (s *MetricsService) UpdateJSONHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	switch metric.MType {
 	case "gauge":
 		s.storage.SetGauge(metric.ID, *metric.Value)
@@ -148,7 +147,6 @@ func (s *MetricsService) UpdateJSONHandler(c *gin.Context) {
 	default:
 		c.JSON(http.StatusBadRequest, "Unknown metric name")
 	}
-
 	updatedMetric := s.storage.GetMetrics()[metric.ID]
 	c.JSON(http.StatusOK, updatedMetric)
 }

@@ -20,5 +20,4 @@ func NewStorage(config flags.Config) interfaces.Storage {
 
 	log.I().Info("тип хранилища: MemStorage")
 	return NewMemStorage()
-
 }
