@@ -152,3 +152,24 @@ func (s *MetricsService) UpdateJSONHandler(c *gin.Context) {
 	updatedMetric := s.storage.GetMetrics()[metric.ID]
 	c.JSON(http.StatusOK, updatedMetric)
 }
+
+func (s *MetricsService) UpdateBatchHandler(c *gin.Context) {
+	metrics := make([]model.Metrics, 0)
+	if err := c.ShouldBindJSON(&metrics); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	for _, metric := range metrics {
+		switch metric.MType {
+		case "gauge":
+			s.storage.SetGauge(metric.ID, *metric.Value)
+		case "counter":
+			s.storage.AddCounter(metric.ID, *metric.Delta)
+		default:
+			log.I().Warnf("не известный тип метрики: %v", metric.MType)
+			c.JSON(http.StatusBadRequest, "Unknown metric name")
+		}
+	}
+
+	c.JSON(http.StatusOK, "OK")
+}

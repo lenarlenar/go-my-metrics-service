@@ -65,6 +65,7 @@ func main() {
 	router.GET("/ping", metricsService.PingHandler)
 	router.POST("/value/", metricsService.ValueJSONHandler)
 	router.POST("/update/", metricsService.UpdateJSONHandler)
+	router.POST("/updates/", metricsService.UpdateBatchHandler)
 	router.GET("/value/:type/:name/", metricsService.ValueHandler)
 	router.POST("/update/:type/:name/:value", metricsService.UpdateHandler)
 
