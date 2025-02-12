@@ -3,68 +3,58 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/gin-gonic/gin"
+	"github.com/lenarlenar/go-my-metrics-service/internal/flags"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/middleware"
-	"github.com/lenarlenar/go-my-metrics-service/internal/repo"
 	"github.com/lenarlenar/go-my-metrics-service/internal/service"
+	"github.com/lenarlenar/go-my-metrics-service/internal/storage"
 )
 
-const (
-	defaultServerAddress   = "localhost:8080"
-	defaultStoreInterval   = 300
-	defaultFileStoragePath = "metrics.json"
-	defaultRestore         = true
-)
-
-var (
-	serverAddress   string
-	storeInterval   int
-	fileStoragePath string
-	restore         bool
-)
-
-type EnvConfig struct {
-	ServerAddress   string `env:"ADDRESS"`
-	StoreInterval   int    `env:"STORE_INTERVAL"`
-	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	Restore         bool   `env:"RESTORE"`
-}
-
+var config flags.Config
 func main() {
-	var envConfig EnvConfig
+	var envConfig flags.EnvConfig
 	if err := env.Parse(&envConfig); err != nil {
 		log.I().Fatalw(err.Error(), "event", "parse env")
 	}
 
-	flag.StringVar(&serverAddress, "a", defaultServerAddress, "Адрес сервера")
-	flag.IntVar(&storeInterval, "i", defaultStoreInterval, "Интервал сохранения в файл")
-	flag.StringVar(&fileStoragePath, "f", defaultFileStoragePath, "Путь к файлу")
-	flag.BoolVar(&restore, "r", defaultRestore, "Загружать или нет ранее сохраненные файлы")
+	storeInterval := *flag.Int("i", flags.DefaultStoreIntervalSec, "Интервал сохранения в файл")
+	flag.StringVar(&config.ServerAddress, "a", flags.DefaultServerAddress , "Адрес сервера")
+	flag.StringVar(&config.FileStoragePath, "f", flags.DefaultFileStoragePath, "Путь к файлу")
+	flag.BoolVar(&config.Restore, "r", flags.DefaultRestore, "Загружать или нет ранее сохраненные файлы")
+	flag.StringVar(&config.DatabaseDSN, "d", flags.DefaultDatabaseDSN, "Загружать или нет ранее сохраненные файлы")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
-		serverAddress = envConfig.ServerAddress
+		config.ServerAddress = envConfig.ServerAddress
 	}
 
 	if _, isSet := os.LookupEnv("STORE_INTERVAL"); isSet {
-		storeInterval = envConfig.StoreInterval
+		config.StoreInterval = time.Duration(envConfig.StoreInterval) * time.Second
 	} else if storeInterval < 0 {
-		storeInterval = defaultStoreInterval
+		config.StoreInterval = time.Duration(flags.DefaultStoreIntervalSec) * time.Second
+	} else {
+		config.StoreInterval = time.Duration(storeInterval) * time.Second
 	}
 
 	if envConfig.FileStoragePath != "" {
-		fileStoragePath = envConfig.FileStoragePath
+		config.FileStoragePath = envConfig.FileStoragePath
 	}
 
 	if _, isSet := os.LookupEnv("RESTORE"); isSet {
-		restore = envConfig.Restore
+		config.Restore = envConfig.Restore
 	}
 
-	storage := repo.NewStorage()
-	storage.EnableFileBackup(fileStoragePath, storeInterval, restore)
+	if envConfig.DatabaseDSN != "" {
+		config.DatabaseDSN = envConfig.DatabaseDSN
+	}
+
+	storage := storage.NewStorage(config)
+	//fileStore := filestore.FileStore{Storage: storage}
+	//fileStore.Enable(fileStoragePath, storeInterval, restore)
 	metricsService := service.NewService(storage)
 
 	router := gin.New()
@@ -72,17 +62,19 @@ func main() {
 	router.Use(middleware.GzipCompression())
 	router.Use(middleware.GzipUnpack())
 	router.GET("/", metricsService.IndexHandler)
+	router.GET("/ping", metricsService.PingHandler)
 	router.POST("/value/", metricsService.ValueJSONHandler)
 	router.POST("/update/", metricsService.UpdateJSONHandler)
+	router.POST("/updates/", metricsService.UpdateBatchHandler)
 	router.GET("/value/:type/:name/", metricsService.ValueHandler)
 	router.POST("/update/:type/:name/:value", metricsService.UpdateHandler)
 
 	log.I().Infoln(
 		"Starting server",
-		"addr", serverAddress,
+		"addr", config.ServerAddress,
 	)
 
-	if err := router.Run(serverAddress); err != nil {
+	if err := router.Run(config.ServerAddress); err != nil {
 		log.I().Fatalw(err.Error(), "event", "start server")
 	}
 }
