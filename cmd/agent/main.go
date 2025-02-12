@@ -6,8 +6,8 @@ import (
 	"github.com/caarlos0/env"
 	"github.com/lenarlenar/go-my-metrics-service/internal/collector"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
-	"github.com/lenarlenar/go-my-metrics-service/internal/repo"
 	"github.com/lenarlenar/go-my-metrics-service/internal/sender"
+	"github.com/lenarlenar/go-my-metrics-service/internal/storage"
 )
 
 const (
@@ -30,7 +30,7 @@ type Flags struct {
 
 func main() {
 	flags := getFlags()
-	storage := repo.NewStorage()
+	storage := storage.NewMemStorage()
 	metricsCollector := collector.NewCollector(storage)
 	ticker := metricsCollector.StartCollectAndUpdate(flags.pollInterval)
 	defer ticker.Stop()

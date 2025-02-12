@@ -1,6 +1,8 @@
-package repo
+package storage
 
-import "testing"
+import (
+	"testing"
+)
 
 type Pair struct {
 	a string
@@ -9,7 +11,7 @@ type Pair struct {
 
 func TestStorage(t *testing.T) {
 
-	memStorage := NewStorage()
+	memStorage := NewMemStorage()
 
 	tests := []struct {
 		name   string

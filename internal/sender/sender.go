@@ -16,13 +16,15 @@ import (
 type MetricsSender struct {
 	baseURL   string
 	updateURL string
+	updatesURL string
 	storage   interfaces.Storage
 }
 
 func NewSender(serverAddress string, memStorage interfaces.Storage) *MetricsSender {
 	baseURL := fmt.Sprintf("http://%s", serverAddress)
 	updateURL := fmt.Sprintf("%s/update/", baseURL)
-	return &MetricsSender{baseURL: baseURL, updateURL: updateURL, storage: memStorage}
+	updatesURL := fmt.Sprintf("%s/updates/", baseURL)
+	return &MetricsSender{baseURL: baseURL, updateURL: updateURL, updatesURL: updatesURL, storage: memStorage}
 }
 
 func (m *MetricsSender) Run(reportInterval int) {
@@ -30,10 +32,11 @@ func (m *MetricsSender) Run(reportInterval int) {
 	gzipIsSupported := gzipIsSupported(m.baseURL)
 	log.I().Infof("Поддержка gzip: %v\n", gzipIsSupported)
 	for {
-		for _, model := range m.storage.GetMetrics() {
-			go sendPostRequest(m.updateURL, model)
-			go sendPostWithJSONRequest(m.updateURL, model, gzipIsSupported)
-		}
+		// for _, model := range m.storage.GetMetrics() {
+		// 	go sendPostRequest(m.updateURL, model)
+		// 	go sendPostWithJSONRequest(m.updateURL, model, gzipIsSupported)
+		// }
+		go sendPostBatchRequest(m.updatesURL, m.storage.GetMetrics(), gzipIsSupported)
 		time.Sleep(time.Duration(reportInterval) * time.Second)
 	}
 }
@@ -81,7 +84,7 @@ func sendPostRequest(url string, model model.Metrics) {
 		Post(fullURL)
 
 	if err != nil {
-		log.I().Warnf("Ошибка при отправке запроса: %v", err)
+		log.I().Warnf("ошибка при отправке запроса: %v", err)
 		return
 	}
 
@@ -89,21 +92,18 @@ func sendPostRequest(url string, model model.Metrics) {
 }
 
 func sendPostWithJSONRequest(url string, model model.Metrics, compress bool) {
-
 	jsonModel, err := json.Marshal(model)
 	if err != nil {
-		log.I().Warnf("Ошибка сериализатора: %v", err)
+		log.I().Warnf("ошибка сериализатора: %v", err)
 		return
 	}
-
 	client := resty.New()
 	request := client.R().SetHeader("Content-Type", "application/json")
-
 	if compress {
 		request.SetHeader("Content-Encoding", "gzip")
 		compressedData, err := compressData(jsonModel)
 		if err != nil {
-			log.I().Warnf("Ошибка при попытке сжать метрику %s: %v\n", model.ID, err)
+			log.I().Warnf("ошибка при попытке сжать метрику %s: %v\n", model.ID, err)
 			return
 		}
 		request.SetBody(compressedData)
@@ -111,11 +111,59 @@ func sendPostWithJSONRequest(url string, model model.Metrics, compress bool) {
 		request.SetBody(jsonModel)
 	}
 	resp, err := request.Post(url)
-
 	if err != nil {
-		log.I().Warnf("Ошибка при отправке запроса: %v", err)
+		log.I().Warnf("ошибка при отправке запроса: %v", err)
 		return
 	}
-
 	log.I().Infof("Ответ от %s: %d %s\n", url, resp.StatusCode(), resp)
+}
+
+
+func sendPostBatchRequest(url string, metrics map[string]model.Metrics, compress bool) {
+	metricsSlice:= make([]model.Metrics, 0, len(metrics))
+	for _, m := range metrics {
+		metricsSlice = append(metricsSlice, m)
+	}
+	jsonModel, err := json.Marshal(metricsSlice)
+	if err != nil {
+		log.I().Warnf("ошибка сериализатора: %v", err)
+		return
+	}
+	client := resty.New()
+	request := client.R().SetHeader("Content-Type", "application/json")
+	if compress {
+		request.SetHeader("Content-Encoding", "gzip")
+		compressedData, err := compressData(jsonModel)
+		if err != nil {
+			log.I().Warnf("ошибка при попытке сжать: %v\n", err)
+			return
+		}
+		request.SetBody(compressedData)
+	} else {
+		request.SetBody(jsonModel)
+	}	
+	resp, err := postWithRetry(request, url)
+	if err != nil {
+		log.I().Warnf("ошибка при отправке запроса: %v", err)
+	} else {
+		log.I().Infof("ответ от %s: %d %s\n", url, resp.StatusCode(), resp)
+	}
+}
+
+const retryCount = 3
+func postWithRetry(request *resty.Request, url string) (*resty.Response, error) {
+    delay := 1
+	for i := 0; i < retryCount; i++ {
+        resp, err := request.Post(url)
+        if err != nil {
+            log.I().Warnf("ошибка при запросе к серверу: %v\n", err)
+        } else if resp.StatusCode() == 200 {
+            return resp, nil
+        } else {
+            log.I().Warnf("ошибка при запросе к серверу: status code %d\n", resp.StatusCode())
+        }
+        time.Sleep(time.Duration(delay) * time.Second)
+        delay += 2
+    }
+    return nil, fmt.Errorf("запрос не удалось выполнить успешно после %d попыток", retryCount)
 }
