@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -14,10 +15,10 @@ import (
 )
 
 type MetricsSender struct {
-	baseURL   string
-	updateURL string
+	baseURL    string
+	updateURL  string
 	updatesURL string
-	storage   interfaces.Storage
+	storage    interfaces.Storage
 }
 
 func NewSender(serverAddress string, memStorage interfaces.Storage) *MetricsSender {
@@ -118,9 +119,8 @@ func sendPostWithJSONRequest(url string, model model.Metrics, compress bool) {
 	log.I().Infof("Ответ от %s: %d %s\n", url, resp.StatusCode(), resp)
 }
 
-
 func sendPostBatchRequest(url string, metrics map[string]model.Metrics, compress bool) {
-	metricsSlice:= make([]model.Metrics, 0, len(metrics))
+	metricsSlice := make([]model.Metrics, 0, len(metrics))
 	for _, m := range metrics {
 		metricsSlice = append(metricsSlice, m)
 	}
@@ -141,7 +141,7 @@ func sendPostBatchRequest(url string, metrics map[string]model.Metrics, compress
 		request.SetBody(compressedData)
 	} else {
 		request.SetBody(jsonModel)
-	}	
+	}
 	resp, err := postWithRetry(request, url)
 	if err != nil {
 		log.I().Warnf("ошибка при отправке запроса: %v", err)
@@ -151,19 +151,20 @@ func sendPostBatchRequest(url string, metrics map[string]model.Metrics, compress
 }
 
 const retryCount = 3
+
 func postWithRetry(request *resty.Request, url string) (*resty.Response, error) {
-    delay := 1
+	delay := 1
 	for i := 0; i < retryCount; i++ {
-        resp, err := request.Post(url)
-        if err != nil {
-            log.I().Warnf("ошибка при запросе к серверу: %v\n", err)
-        } else if resp.StatusCode() == 200 {
-            return resp, nil
-        } else {
-            log.I().Warnf("ошибка при запросе к серверу: status code %d\n", resp.StatusCode())
-        }
-        time.Sleep(time.Duration(delay) * time.Second)
-        delay += 2
-    }
-    return nil, fmt.Errorf("запрос не удалось выполнить успешно после %d попыток", retryCount)
+		resp, err := request.Post(url)
+		if err != nil {
+			log.I().Warnf("ошибка при запросе к серверу: %v\n", err)
+		} else if resp.StatusCode() == http.StatusOK {
+			return resp, nil
+		} else {
+			log.I().Warnf("ошибка при запросе к серверу: status code %d\n", resp.StatusCode())
+		}
+		time.Sleep(time.Duration(delay) * time.Second)
+		delay += 2
+	}
+	return nil, fmt.Errorf("запрос не удалось выполнить успешно после %d попыток", retryCount)
 }

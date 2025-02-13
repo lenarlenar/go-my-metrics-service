@@ -16,7 +16,6 @@ func Logger() gin.HandlerFunc {
 		start := time.Now()
 		c.Next()
 		duration := time.Since(start)
-
 		log.I().Infoln(
 			"uri", c.Request.RequestURI,
 			"method", c.Request.Method,
