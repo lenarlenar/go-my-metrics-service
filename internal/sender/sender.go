@@ -14,6 +14,7 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/model"
+	"github.com/lenarlenar/go-my-metrics-service/internal/agent/flags"
 )
 
 type MetricsSender struct {
@@ -30,7 +31,7 @@ func NewSender(serverAddress string, memStorage interfaces.Storage) *MetricsSend
 	return &MetricsSender{baseURL: baseURL, updateURL: updateURL, updatesURL: updatesURL, storage: memStorage}
 }
 
-func (m *MetricsSender) Run(reportInterval int, key string) {
+func (m *MetricsSender) Run(reportInterval time.Duration, key string) {
 
 	gzipIsSupported := gzipIsSupported(m.baseURL)
 	log.I().Infof("Поддержка gzip: %v\n", gzipIsSupported)
@@ -40,8 +41,15 @@ func (m *MetricsSender) Run(reportInterval int, key string) {
 		// 	go sendPostWithJSONRequest(m.updateURL, model, gzipIsSupported)
 		// }
 		go sendPostBatchRequest(key, m.updatesURL, m.storage.GetMetrics(), gzipIsSupported)
-		time.Sleep(time.Duration(reportInterval) * time.Second)
+		time.Sleep(reportInterval)
 	}
+}
+
+func Send(flags flags.Flags, metrics map[string]model.Metrics) {
+	baseURL := fmt.Sprintf("http://%s", flags.ServerAddress)
+	updatesURL := fmt.Sprintf("%s/updates/", baseURL)
+	gzipIsSupported := gzipIsSupported(baseURL)
+	sendPostBatchRequest(flags.Key, updatesURL, metrics, gzipIsSupported)
 }
 
 func compressData(data []byte) ([]byte, error) {

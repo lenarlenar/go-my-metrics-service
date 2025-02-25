@@ -1,82 +1,64 @@
 package main
 
 import (
-	"flag"
+	"sync"
+	"time"
 
-	"github.com/caarlos0/env"
+	"github.com/lenarlenar/go-my-metrics-service/internal/agent/flags"
 	"github.com/lenarlenar/go-my-metrics-service/internal/collector"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
+	"github.com/lenarlenar/go-my-metrics-service/internal/model"
 	"github.com/lenarlenar/go-my-metrics-service/internal/sender"
 	"github.com/lenarlenar/go-my-metrics-service/internal/storage"
 )
 
-const (
-	defaultServerAddress  = "localhost:8080"
-	defaultReportInterval = 10
-	defaultPollInterval   = 2
-	defaultKey            = ""
-)
-
-type EnvConfig struct {
-	ServerAddress  string `env:"ADDRESS"`
-	ReportInterval int    `env:"REPORT_INTERVAL"`
-	PollInterval   int    `env:"POLL_INTERVAL"`
-	Key   		   string  `env:"KEY"`
-
-}
-
-type Flags struct {
-	serverAddress  string
-	pollInterval   int
-	reportInterval int
-	key            string
-}
-
 func main() {
-	flags := getFlags()
+	flags := flags.GetFlags()
 	storage := storage.NewMemStorage()
-	metricsCollector := collector.NewCollector(storage)
-	ticker := metricsCollector.StartCollectAndUpdate(flags.pollInterval)
-	defer ticker.Stop()
-	sender.NewSender(flags.serverAddress, storage).Run(flags.reportInterval, flags.key)
+
+	tickerPoll := time.NewTicker(flags.PollInterval)
+	defer tickerPoll.Stop()
+	go func() {
+		for range tickerPoll.C {
+			collector.UpdateMetrics(storage)
+		}
+	}()
+
+	if flags.RateLimit == 0 {
+		sender.NewSender(flags.ServerAddress, storage).Run(flags.ReportInterval, flags.Key)
+	} else {
+
+		go func() {
+			for range tickerPoll.C {
+				collector.UpdateExtraMetrics(storage)
+			}
+		}()
+
+		mainChan := make(chan map[string]model.Metrics, flags.RateLimit)
+		tickerReport := time.NewTicker(flags.ReportInterval)
+		defer tickerReport.Stop()
+		var wg sync.WaitGroup
+
+		log.I().Info("Запускаем воркер...")
+		for i := 0; i < flags.RateLimit; i++ {
+			wg.Add(1)
+			go worker(flags, mainChan, &wg)
+		}
+		log.I().Infof("Запушено воркеров: %d\n", flags.RateLimit)
+
+		go func() {
+			for range tickerReport.C {
+				mainChan <- storage.GetMetrics()
+			}
+		}()
+
+		select {}
+	}
 }
 
-func getFlags() Flags {
-	var envConfig EnvConfig
-	if err := env.Parse(&envConfig); err != nil {
-		log.I().Fatal(err)
-	}
-
-	serverAddress := flag.String("a", defaultServerAddress, "Адрес сервера")
-	reportInterval := flag.Int("r", defaultReportInterval, "Интервал отправки на сервер")
-	pollInterval := flag.Int("p", defaultPollInterval, "Интервал локального обновления данных")
-	key := flag.String("k", defaultKey, "Ключ для шифрования")
-	flag.Parse()
-
-	if envConfig.ServerAddress != "" {
-		*serverAddress = envConfig.ServerAddress
-	}
-
-	if envConfig.ReportInterval > 0 {
-		*reportInterval = envConfig.ReportInterval
-	} else if *reportInterval <= 0 {
-		*reportInterval = 10
-	}
-
-	if envConfig.PollInterval > 0 {
-		*pollInterval = envConfig.PollInterval
-	} else if *pollInterval <= 0 {
-		*pollInterval = 2
-	}
-
-	if envConfig.Key != "" {
-		*key = envConfig.Key
-	}
-
-	return Flags{
-		serverAddress:  *serverAddress,
-		pollInterval:   *pollInterval,
-		reportInterval: *reportInterval,
-		key: *key,
+func worker(flags flags.Flags, channel chan map[string]model.Metrics, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for data := range channel {
+		sender.Send(flags, data)
 	}
 }
