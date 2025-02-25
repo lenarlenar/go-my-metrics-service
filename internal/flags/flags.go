@@ -8,6 +8,7 @@ const (
 	DefaultFileStoragePath  = ""  //"metrics.json"
 	DefaultRestore          = true
 	DefaultDatabaseDSN      = "" //"host=localhost port=5432 user=postgres password=admin dbname=postgres sslmode=disable"
+	DefaultKey              = ""
 )
 
 type Config struct {
@@ -16,6 +17,7 @@ type Config struct {
 	FileStoragePath string
 	Restore         bool
 	DatabaseDSN     string
+	Key             string
 }
 
 type EnvConfig struct {
@@ -24,4 +26,5 @@ type EnvConfig struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
+	Key             string `env:"KEY"`
 }
