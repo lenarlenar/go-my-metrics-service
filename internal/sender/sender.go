@@ -3,6 +3,9 @@ package sender
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -14,10 +17,10 @@ import (
 )
 
 type MetricsSender struct {
-	baseURL   string
-	updateURL string
+	baseURL    string
+	updateURL  string
 	updatesURL string
-	storage   interfaces.Storage
+	storage    interfaces.Storage
 }
 
 func NewSender(serverAddress string, memStorage interfaces.Storage) *MetricsSender {
@@ -27,7 +30,7 @@ func NewSender(serverAddress string, memStorage interfaces.Storage) *MetricsSend
 	return &MetricsSender{baseURL: baseURL, updateURL: updateURL, updatesURL: updatesURL, storage: memStorage}
 }
 
-func (m *MetricsSender) Run(reportInterval int) {
+func (m *MetricsSender) Run(reportInterval int, key string) {
 
 	gzipIsSupported := gzipIsSupported(m.baseURL)
 	log.I().Infof("Поддержка gzip: %v\n", gzipIsSupported)
@@ -36,7 +39,7 @@ func (m *MetricsSender) Run(reportInterval int) {
 		// 	go sendPostRequest(m.updateURL, model)
 		// 	go sendPostWithJSONRequest(m.updateURL, model, gzipIsSupported)
 		// }
-		go sendPostBatchRequest(m.updatesURL, m.storage.GetMetrics(), gzipIsSupported)
+		go sendPostBatchRequest(key, m.updatesURL, m.storage.GetMetrics(), gzipIsSupported)
 		time.Sleep(time.Duration(reportInterval) * time.Second)
 	}
 }
@@ -118,9 +121,14 @@ func sendPostWithJSONRequest(url string, model model.Metrics, compress bool) {
 	log.I().Infof("Ответ от %s: %d %s\n", url, resp.StatusCode(), resp)
 }
 
+func calculateHash(data, key []byte) string {
+	h := hmac.New(sha256.New, key)
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
+}
 
-func sendPostBatchRequest(url string, metrics map[string]model.Metrics, compress bool) {
-	metricsSlice:= make([]model.Metrics, 0, len(metrics))
+func sendPostBatchRequest(key string, url string, metrics map[string]model.Metrics, compress bool) {
+	metricsSlice := make([]model.Metrics, 0, len(metrics))
 	for _, m := range metrics {
 		metricsSlice = append(metricsSlice, m)
 	}
@@ -129,8 +137,17 @@ func sendPostBatchRequest(url string, metrics map[string]model.Metrics, compress
 		log.I().Warnf("ошибка сериализатора: %v", err)
 		return
 	}
+
 	client := resty.New()
 	request := client.R().SetHeader("Content-Type", "application/json")
+
+	if key != "" {
+		log.I().Info("secretKey: " + key)
+		hash := calculateHash(jsonModel, []byte(key))
+		log.I().Info("HashSHA256: " + hash)
+		request.SetHeader("HashSHA256", hash)
+	}
+
 	if compress {
 		request.SetHeader("Content-Encoding", "gzip")
 		compressedData, err := compressData(jsonModel)
@@ -141,7 +158,7 @@ func sendPostBatchRequest(url string, metrics map[string]model.Metrics, compress
 		request.SetBody(compressedData)
 	} else {
 		request.SetBody(jsonModel)
-	}	
+	}
 	resp, err := postWithRetry(request, url)
 	if err != nil {
 		log.I().Warnf("ошибка при отправке запроса: %v", err)
