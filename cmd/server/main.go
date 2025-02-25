@@ -15,6 +15,7 @@ import (
 )
 
 var config flags.Config
+
 func main() {
 	var envConfig flags.EnvConfig
 	if err := env.Parse(&envConfig); err != nil {
@@ -22,14 +23,19 @@ func main() {
 	}
 
 	storeInterval := *flag.Int("i", flags.DefaultStoreIntervalSec, "Интервал сохранения в файл")
-	flag.StringVar(&config.ServerAddress, "a", flags.DefaultServerAddress , "Адрес сервера")
+	flag.StringVar(&config.ServerAddress, "a", flags.DefaultServerAddress, "Адрес сервера")
 	flag.StringVar(&config.FileStoragePath, "f", flags.DefaultFileStoragePath, "Путь к файлу")
 	flag.BoolVar(&config.Restore, "r", flags.DefaultRestore, "Загружать или нет ранее сохраненные файлы")
 	flag.StringVar(&config.DatabaseDSN, "d", flags.DefaultDatabaseDSN, "Загружать или нет ранее сохраненные файлы")
+	flag.StringVar(&config.Key, "k", flags.DefaultKey, "Ключ для шифрования")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
 		config.ServerAddress = envConfig.ServerAddress
+	}
+
+	if envConfig.Key != "" {
+		config.Key = envConfig.Key
 	}
 
 	if _, isSet := os.LookupEnv("STORE_INTERVAL"); isSet {
@@ -53,19 +59,22 @@ func main() {
 	}
 
 	storage := storage.NewStorage(config)
-	//fileStore := filestore.FileStore{Storage: storage}
-	//fileStore.Enable(fileStoragePath, storeInterval, restore)
 	metricsService := service.NewService(storage)
 
 	router := gin.New()
 	router.Use(middleware.Logger())
 	router.Use(middleware.GzipCompression())
 	router.Use(middleware.GzipUnpack())
+
+	updatesGroup := router.Group("/updates")
+	updatesGroup.Use(middleware.CheckHash(config.Key))
+	{
+		updatesGroup.POST("/", metricsService.UpdateBatchHandler)
+	}
 	router.GET("/", metricsService.IndexHandler)
 	router.GET("/ping", metricsService.PingHandler)
 	router.POST("/value/", metricsService.ValueJSONHandler)
 	router.POST("/update/", metricsService.UpdateJSONHandler)
-	router.POST("/updates/", metricsService.UpdateBatchHandler)
 	router.GET("/value/:type/:name/", metricsService.ValueHandler)
 	router.POST("/update/:type/:name/:value", metricsService.UpdateHandler)
 

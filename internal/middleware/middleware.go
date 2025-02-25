@@ -2,6 +2,9 @@ package middleware
 
 import (
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"strings"
@@ -69,5 +72,50 @@ func GzipUnpack() gin.HandlerFunc {
 			c.Request.Body = &GzipReader{c.Request.Body, gz}
 		}
 		c.Next()
+	}
+}
+
+func calculateHash(data, key []byte) string {
+	h := hmac.New(sha256.New, key)
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
+}
+func CheckHash(secretKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		if secretKey == "" {
+			log.I().Warn("secretKey не задан")
+			c.Next()
+			return
+		}
+
+		hash := c.GetHeader("HashSHA256")
+		if hash == "" {
+			log.I().Warn("HashSHA256 не задан в headers")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+
+		data, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			log.I().Warnf("не удалось прочитать Body: %v/n", err)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+
+		c.Request.Body = io.NopCloser(strings.NewReader(string(data)))
+
+		expectedHash := calculateHash(data, []byte(secretKey))
+		if hash != expectedHash {
+			log.I().Warn("HashSHA256: хеши не совпали")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+
+		c.Next()
+
+		responseData := []byte(c.Writer.Header().Get("Content-Type") + c.Request.URL.Path + c.Request.URL.RawQuery)
+		responseHash := calculateHash(responseData, []byte(secretKey))
+		c.Writer.Header().Set("HashSHA256", responseHash)
 	}
 }

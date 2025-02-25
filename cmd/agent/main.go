@@ -14,18 +14,22 @@ const (
 	defaultServerAddress  = "localhost:8080"
 	defaultReportInterval = 10
 	defaultPollInterval   = 2
+	defaultKey            = "key"
 )
 
 type EnvConfig struct {
 	ServerAddress  string `env:"ADDRESS"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
+	Key   		   string    `env:"KEY"`
+
 }
 
 type Flags struct {
 	serverAddress  string
 	pollInterval   int
 	reportInterval int
+	key            string
 }
 
 func main() {
@@ -34,7 +38,7 @@ func main() {
 	metricsCollector := collector.NewCollector(storage)
 	ticker := metricsCollector.StartCollectAndUpdate(flags.pollInterval)
 	defer ticker.Stop()
-	sender.NewSender(flags.serverAddress, storage).Run(flags.reportInterval)
+	sender.NewSender(flags.serverAddress, storage).Run(flags.reportInterval, flags.key)
 }
 
 func getFlags() Flags {
@@ -46,6 +50,7 @@ func getFlags() Flags {
 	serverAddress := flag.String("a", defaultServerAddress, "Адрес сервера")
 	reportInterval := flag.Int("r", defaultReportInterval, "Интервал отправки на сервер")
 	pollInterval := flag.Int("p", defaultPollInterval, "Интервал локального обновления данных")
+	key := flag.String("k", defaultKey, "Ключ для шифрования")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
@@ -64,9 +69,14 @@ func getFlags() Flags {
 		*pollInterval = 2
 	}
 
+	if envConfig.Key != "" {
+		*key = envConfig.Key
+	}
+
 	return Flags{
 		serverAddress:  *serverAddress,
 		pollInterval:   *pollInterval,
 		reportInterval: *reportInterval,
+		key: *key,
 	}
 }
