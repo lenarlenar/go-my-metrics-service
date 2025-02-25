@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -169,20 +168,19 @@ func sendPostBatchRequest(key string, url string, metrics map[string]model.Metri
 }
 
 const retryCount = 3
-
 func postWithRetry(request *resty.Request, url string) (*resty.Response, error) {
-	delay := 1
+    delay := 1
 	for i := 0; i < retryCount; i++ {
-		resp, err := request.Post(url)
-		if err != nil {
-			log.I().Warnf("ошибка при запросе к серверу: %v\n", err)
-		} else if resp.StatusCode() == http.StatusOK {
-			return resp, nil
-		} else {
-			log.I().Warnf("ошибка при запросе к серверу: status code %d\n", resp.StatusCode())
-		}
-		time.Sleep(time.Duration(delay) * time.Second)
-		delay += 2
-	}
-	return nil, fmt.Errorf("запрос не удалось выполнить успешно после %d попыток", retryCount)
+        resp, err := request.Post(url)
+        if err != nil {
+            log.I().Warnf("ошибка при запросе к серверу: %v\n", err)
+        } else if resp.StatusCode() == 200 {
+            return resp, nil
+        } else {
+            log.I().Warnf("ошибка при запросе к серверу: status code %d\n", resp.StatusCode())
+        }
+        time.Sleep(time.Duration(delay) * time.Second)
+        delay += 2
+    }
+    return nil, fmt.Errorf("запрос не удалось выполнить успешно после %d попыток", retryCount)
 }

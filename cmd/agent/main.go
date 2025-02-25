@@ -14,14 +14,14 @@ const (
 	defaultServerAddress  = "localhost:8080"
 	defaultReportInterval = 10
 	defaultPollInterval   = 2
-	defaultKey            = "key"
+	defaultKey            = ""
 )
 
 type EnvConfig struct {
 	ServerAddress  string `env:"ADDRESS"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
-	Key   		   string    `env:"KEY"`
+	Key   		   string  `env:"KEY"`
 
 }
 

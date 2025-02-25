@@ -8,7 +8,7 @@ const (
 	DefaultFileStoragePath  = ""  //"metrics.json"
 	DefaultRestore          = true
 	DefaultDatabaseDSN      = "" //"host=localhost port=5432 user=postgres password=admin dbname=postgres sslmode=disable"
-	DefaultKey              = "key"
+	DefaultKey              = ""
 )
 
 type Config struct {
