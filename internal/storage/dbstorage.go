@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -31,7 +32,7 @@ func NewDBStorage(config flags.Config) *DBStorage {
 }
 
 func (m *DBStorage) CreateTable() error {
-	_, err := m.DB.Exec(`CREATE TABLE IF NOT EXISTS metrics (
+	_, err := m.DB.ExecContext(context.Background(), `CREATE TABLE IF NOT EXISTS metrics (
 		id SERIAL PRIMARY KEY,
 		type TEXT NOT NULL,
 		name TEXT NOT NULL,
@@ -45,12 +46,12 @@ func (m *DBStorage) CreateTable() error {
 }
 
 func (m *DBStorage) GetMetrics() map[string]model.Metrics {
-	rows, err := m.DB.Query(`SELECT * FROM metrics`)
+	rows, err := m.DB.QueryContext(context.Background(), `SELECT * FROM metrics`)
 	if err == nil {
 		metrics := make(map[string]model.Metrics)
 		for rows.Next() {
 			var m model.Metrics
-			var id  interface {}
+			var id interface{}
 			err = rows.Scan(&id, &m.MType, &m.ID, &m.Value, &m.Delta)
 			if err != nil {
 				panic(err)
@@ -69,7 +70,7 @@ func (m *DBStorage) GetMetrics() map[string]model.Metrics {
 }
 
 func (m *DBStorage) SetGauge(n string, v float64) {
-	_, err := m.DB.Exec(`INSERT INTO metrics (type, name, value, delta)
+	_, err := m.DB.ExecContext(context.Background(), `INSERT INTO metrics (type, name, value, delta)
 	VALUES ($1, $2, $3, $4)`,
 		"gauge", n, v, nil)
 	if err != nil {
@@ -78,20 +79,20 @@ func (m *DBStorage) SetGauge(n string, v float64) {
 }
 
 func (m *DBStorage) AddCounter(n string, v int64) {
-	row := m.DB.QueryRow(`SELECT delta FROM metrics
+	row := m.DB.QueryRowContext(context.Background(), `SELECT delta FROM metrics
 			WHERE type = 'counter' AND name = $1`, n)
 	var oldValue int64
 	err := row.Scan(&oldValue)
 	if err == nil {
 		newDelta := oldValue + v
-		_, err := m.DB.Exec(`UPDATE metrics
+		_, err := m.DB.ExecContext(context.Background(), `UPDATE metrics
 			SET delta = $1
 			WHERE type = 'counter' AND name = $2`, newDelta, n)
 		if err != nil {
 			log.I().Warnf("ошибка при попытке обновить в бд метрику типа counter: %w", err)
 		}
 	} else if err == sql.ErrNoRows {
-		_, err := m.DB.Exec(`INSERT INTO metrics (type, name, value, delta)
+		_, err := m.DB.ExecContext(context.Background(), `INSERT INTO metrics (type, name, value, delta)
 		VALUES ($1, $2, $3, $4)`,
 			"counter", n, nil, v)
 		if err != nil {

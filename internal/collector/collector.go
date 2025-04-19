@@ -3,32 +3,14 @@ package collector
 import (
 	"math/rand/v2"
 	"runtime"
-	"time"
+	"strconv"
 
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 )
 
-type MetricsCollector struct {
-	storage interfaces.Storage
-}
-
-func NewCollector(s interfaces.Storage) *MetricsCollector {
-	return &MetricsCollector{storage: s}
-}
-
-func (ms *MetricsCollector) StartCollectAndUpdate(pollInterval int) *time.Ticker {
-
-	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
-
-	go func() {
-		for range ticker.C {
-			updateMetrics(ms.storage)
-		}
-	}()
-	return ticker
-}
-
-func updateMetrics(memStorage interfaces.Storage) {
+func UpdateMetrics(memStorage interfaces.Storage) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	memStorage.SetGauge("Alloc", float64(m.Alloc))
@@ -61,4 +43,16 @@ func updateMetrics(memStorage interfaces.Storage) {
 
 	memStorage.AddCounter("PollCount", 1)
 	memStorage.SetGauge("RandomValue", rand.Float64())
+}
+
+func UpdateExtraMetrics(memStorage interfaces.Storage) {
+
+	v, _ := mem.VirtualMemory()
+	memStorage.SetGauge("TotalMemory", float64(v.Total))
+	memStorage.SetGauge("FreeMemory", float64(v.Free))
+
+	cpuUtilization, _ := cpu.Percent(0, true)
+	for i, cpuPercent := range cpuUtilization {
+		memStorage.SetGauge("CPUutilization" + strconv.Itoa(i+1), cpuPercent)
+	}
 }
