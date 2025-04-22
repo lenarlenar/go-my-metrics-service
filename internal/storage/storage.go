@@ -1,9 +1,9 @@
 package storage
 
 import (
-	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
+	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
 )
 
 func NewStorage(config flags.Config) interfaces.Storage {

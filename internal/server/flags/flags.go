@@ -12,7 +12,7 @@ import (
 const (
 	DefaultServerAddress    = "localhost:8080"
 	DefaultStoreIntervalSec = 300
-	DefaultFileStoragePath  = ""  //"metrics.json"
+	DefaultFileStoragePath  = "" //"metrics.json"
 	DefaultRestore          = true
 	DefaultDatabaseDSN      = "" //"host=localhost port=5432 user=postgres password=admin dbname=postgres sslmode=disable"
 	DefaultKey              = ""
@@ -51,7 +51,6 @@ func Parse() Config {
 	flag.StringVar(&config.Key, "k", DefaultKey, "Ключ для шифрования")
 	flag.Parse()
 
-	
 	if envConfig.ServerAddress != "" {
 		config.ServerAddress = envConfig.ServerAddress
 	}

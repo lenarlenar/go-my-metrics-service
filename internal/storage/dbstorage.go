@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/model"
+	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
 )
 
 type DBStorage struct {

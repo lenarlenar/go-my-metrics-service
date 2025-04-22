@@ -23,38 +23,38 @@ func main() {
 			"addr", "http://localhost:6060/debug/pprof/",
 		)
 
-        if err := http.ListenAndServe(":6060", nil); err != nil {
-            log.I().Fatalw(err.Error(), "event", "start debug/pprof server")
-        }
-    }()
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			log.I().Fatalw(err.Error(), "event", "start debug/pprof server")
+		}
+	}()
 
 	config := flags.Parse()
 	storage := storage.NewStorage(config)
 	metricsService := service.NewService(storage)
 	router := router.New(config, metricsService)
 
-    server := &http.Server{
-        Addr:    ":8080",
-        Handler: router,
-    }
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: router,
+	}
 
-    go func() {
-        log.I().Infoln(
+	go func() {
+		log.I().Infoln(
 			"Starting server",
 			"addr", config.ServerAddress,
 		)
-        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-            log.I().Fatalw(err.Error(), "event", "start server")
-        }
-    }()
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.I().Fatalw(err.Error(), "event", "start server")
+		}
+	}()
 
 	stop := make(chan os.Signal, 1)
-    signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-    if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(ctx); err != nil {
 		log.I().Fatalw(err.Error(), "event", "shutdown server")
-    } 
+	}
 }

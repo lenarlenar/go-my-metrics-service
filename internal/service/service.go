@@ -21,7 +21,7 @@ func NewService(s interfaces.Storage) *MetricsService {
 
 func (s *MetricsService) PingHandler(c *gin.Context) {
 	err := s.storage.Ping()
-	if err != nil  {
+	if err != nil {
 		log.I().Warnf("Ошибка при попытке вызова метода Ping к базе данных: %v", err)
 		c.String(http.StatusInternalServerError, "Internal Server Error")
 		return

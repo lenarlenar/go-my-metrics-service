@@ -53,6 +53,6 @@ func UpdateExtraMetrics(memStorage interfaces.Storage) {
 
 	cpuUtilization, _ := cpu.Percent(0, true)
 	for i, cpuPercent := range cpuUtilization {
-		memStorage.SetGauge("CPUutilization" + strconv.Itoa(i+1), cpuPercent)
+		memStorage.SetGauge("CPUutilization"+strconv.Itoa(i+1), cpuPercent)
 	}
 }
