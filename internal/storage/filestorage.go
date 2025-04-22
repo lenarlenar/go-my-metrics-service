@@ -1,3 +1,4 @@
+// Package storage реализует файловое хранилище метрик.package storage
 package storage
 
 import (
@@ -14,11 +15,14 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
 )
 
+// FileStorage реализует интерфейс Storage, сохраняя метрики в файл.
 type FileStorage struct {
 	mutex   sync.Mutex
 	metrics map[string]model.Metrics
 }
 
+// NewFileStorage создает новое файловое хранилище. При флаге Restore пытается загрузить данные из файла.
+// Также запускает фоновую горутину, которая сохраняет метрики через заданный интервал.
 func NewFileStorage(config flags.Config) (*FileStorage, error) {
 
 	fs := &FileStorage{
@@ -44,18 +48,21 @@ func NewFileStorage(config flags.Config) (*FileStorage, error) {
 	return fs, nil
 }
 
+// GetMetrics возвращает все сохранённые метрики.
 func (fs *FileStorage) GetMetrics() map[string]model.Metrics {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
 	return fs.metrics
 }
 
+// SetGauge сохраняет метрику типа gauge.
 func (fs *FileStorage) SetGauge(n string, v float64) {
 	fs.mutex.Lock()
 	fs.metrics[n] = model.Metrics{ID: n, MType: "gauge", Value: &v}
 	fs.mutex.Unlock()
 }
 
+// AddCounter увеличивает метрику типа counter, если она существует, или добавляет новую.
 func (fs *FileStorage) AddCounter(n string, v int64) {
 	fs.mutex.Lock()
 	oldMetric, ok := fs.metrics[n]
@@ -69,10 +76,12 @@ func (fs *FileStorage) AddCounter(n string, v int64) {
 	fs.mutex.Unlock()
 }
 
+// Ping возвращает ошибку, так как файловое хранилище не поддерживает пинг.
 func (fs *FileStorage) Ping() error {
 	return errors.New("метод Ping() не определен для данного типа хранилища")
 }
 
+// save сохраняет текущие метрики в указанный файл.
 func (fs *FileStorage) save(file *os.File) {
 	if err := file.Truncate(0); err != nil {
 		log.I().Errorf("ошибка при попытке сохранить метрики в файл: %w", err)
@@ -93,6 +102,7 @@ func (fs *FileStorage) save(file *os.File) {
 	buf.Flush()
 }
 
+// load загружает метрики из файла, если они там есть.
 func (fs *FileStorage) load(file *os.File) {
 	if _, err := file.Seek(0, 0); err != nil {
 		log.I().Warnf("ошибка при загрузке метрик с файла: %w", err)

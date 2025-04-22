@@ -1,3 +1,4 @@
+// Package router отвечает за настройку маршрутов HTTP-сервера.
 package router
 
 import (
@@ -7,17 +8,23 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/service"
 )
 
+// New создает новый экземпляр роутера с зарегистрированными маршрутами и middleware.
 func New(config flags.Config, metricsService *service.MetricsService) *gin.Engine {
 	router := gin.New()
+
+	// Подключение middleware: логирование и gzip
 	router.Use(middleware.Logger())
 	router.Use(middleware.GzipCompression())
 	router.Use(middleware.GzipUnpack())
 
+	// Группа роутов с проверкой подписи
 	updatesGroup := router.Group("/updates")
 	updatesGroup.Use(middleware.CheckHash(config.Key))
 	{
 		updatesGroup.POST("/", metricsService.UpdateBatchHandler)
 	}
+
+	// Общие маршруты
 	router.GET("/", metricsService.IndexHandler)
 	router.GET("/ping", metricsService.PingHandler)
 	router.POST("/value/", metricsService.ValueJSONHandler)

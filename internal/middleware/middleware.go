@@ -15,6 +15,7 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 )
 
+// Logger - логирует информацию о каждом запросе, включая URI, метод, статус, продолжительность и размер ответа.
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -30,21 +31,25 @@ func Logger() gin.HandlerFunc {
 	}
 }
 
+// GzipWriter - структура, которая оборачивает ResponseWriter и добавляет поддержку сжатия через gzip.
 type GzipWriter struct {
 	gin.ResponseWriter
 	writer *gzip.Writer
 }
 
+// Write - метод для записи данных в GzipWriter. Он использует сжатие данных перед отправкой их клиенту.
 func (g *GzipWriter) Write(data []byte) (int, error) {
 	return g.writer.Write(data)
 }
 
+// gzipWriterPool - пул gzip.Writer, который используется для эффективного повторного использования объектов.
 var gzipWriterPool = sync.Pool{
 	New: func() interface{} {
 		return gzip.NewWriter(io.Discard)
 	},
 }
 
+// GzipCompression - middleware для сжатия ответа с использованием алгоритма gzip, если клиент поддерживает его.
 func GzipCompression() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
@@ -61,15 +66,18 @@ func GzipCompression() gin.HandlerFunc {
 	}
 }
 
+// GzipReader - структура для работы с сжатыми данными в запросе, используя gzip.
 type GzipReader struct {
 	io.ReadCloser
 	reader *gzip.Reader
 }
 
+// Read - метод для чтения сжатых данных из GzipReader.
 func (g *GzipReader) Read(p []byte) (int, error) {
 	return g.reader.Read(p)
 }
 
+// GzipUnpack - middleware для распаковки gzip-сжатых данных в теле запроса.
 func GzipUnpack() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.Contains(c.GetHeader("Content-Encoding"), "gzip") {
@@ -86,11 +94,14 @@ func GzipUnpack() gin.HandlerFunc {
 	}
 }
 
+// calculateHash - функция для вычисления HMAC SHA256 хеша данных с использованием ключа.
 func calculateHash(data, key []byte) string {
 	h := hmac.New(sha256.New, key)
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
 }
+
+// CheckHash - middleware для проверки HMAC SHA256 хеша данных в теле запроса и ответа.
 func CheckHash(secretKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 

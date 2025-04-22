@@ -19,12 +19,12 @@ const (
 )
 
 type Config struct {
-	ServerAddress   string
-	StoreInterval   time.Duration
-	FileStoragePath string
-	Restore         bool
-	DatabaseDSN     string
-	Key             string
+	ServerAddress   string        // адрес сервера, по умолчанию "localhost:8080"
+	StoreInterval   time.Duration // интервал сохранения метрик в файл
+	FileStoragePath string        // путь к файлу хранения метрик
+	Restore         bool          // восстанавливать метрики из файла при старте
+	DatabaseDSN     string        // строка подключения к БД PostgreSQL
+	Key             string        // ключ для HMAC-подписи
 }
 
 type EnvConfig struct {

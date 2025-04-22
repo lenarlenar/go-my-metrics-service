@@ -1,3 +1,4 @@
+// Package storage реализует хранилище метрик с использованием PostgreSQL.
 package storage
 
 import (
@@ -10,11 +11,14 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
 )
 
+// DBStorage представляет хранилище метрик, использующее PostgreSQL.
 type DBStorage struct {
 	DB          *sql.DB
 	databaseDSN string
 }
 
+// NewDBStorage создает новое хранилище на базе PostgreSQL, проверяет соединение
+// и создает таблицу при необходимости.
 func NewDBStorage(config flags.Config) *DBStorage {
 	storage := &DBStorage{
 		databaseDSN: config.DatabaseDSN,
@@ -31,6 +35,7 @@ func NewDBStorage(config flags.Config) *DBStorage {
 	return storage
 }
 
+// CreateTable создает таблицу metrics, если она ещё не существует.
 func (m *DBStorage) CreateTable() error {
 	_, err := m.DB.ExecContext(context.Background(), `CREATE TABLE IF NOT EXISTS metrics (
 		id SERIAL PRIMARY KEY,
@@ -45,6 +50,7 @@ func (m *DBStorage) CreateTable() error {
 	return nil
 }
 
+// GetMetrics возвращает все метрики из базы данных в виде map.
 func (m *DBStorage) GetMetrics() map[string]model.Metrics {
 	rows, err := m.DB.QueryContext(context.Background(), `SELECT * FROM metrics`)
 	if err == nil {
@@ -69,6 +75,7 @@ func (m *DBStorage) GetMetrics() map[string]model.Metrics {
 	}
 }
 
+// SetGauge сохраняет значение метрики типа gauge в базу данных.
 func (m *DBStorage) SetGauge(n string, v float64) {
 	_, err := m.DB.ExecContext(context.Background(), `INSERT INTO metrics (type, name, value, delta)
 	VALUES ($1, $2, $3, $4)`,
@@ -78,6 +85,7 @@ func (m *DBStorage) SetGauge(n string, v float64) {
 	}
 }
 
+// AddCounter увеличивает значение метрики counter или создает новую, если она отсутствует.
 func (m *DBStorage) AddCounter(n string, v int64) {
 	row := m.DB.QueryRowContext(context.Background(), `SELECT delta FROM metrics
 			WHERE type = 'counter' AND name = $1`, n)
@@ -103,6 +111,7 @@ func (m *DBStorage) AddCounter(n string, v int64) {
 	}
 }
 
+// Ping проверяет соединение с базой данных и инициализирует объект DB.
 func (m *DBStorage) Ping() error {
 	db, err := sql.Open("postgres", m.databaseDSN)
 	m.DB = db
