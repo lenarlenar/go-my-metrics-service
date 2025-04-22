@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/lenarlenar/go-my-metrics-service/internal/flags"
+	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 )

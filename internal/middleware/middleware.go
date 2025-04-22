@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,11 +39,21 @@ func (g *GzipWriter) Write(data []byte) (int, error) {
 	return g.writer.Write(data)
 }
 
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		return gzip.NewWriter(io.Discard)
+	},
+}
+
 func GzipCompression() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
-			gw := gzip.NewWriter(c.Writer)
-			defer gw.Close()
+			gw := gzipWriterPool.Get().(*gzip.Writer)
+			gw.Reset(c.Writer)
+			defer func() {
+				gw.Close()
+				gzipWriterPool.Put(gw)
+			}()
 			c.Writer = &GzipWriter{c.Writer, gw}
 			c.Header("Content-Encoding", "gzip")
 		}

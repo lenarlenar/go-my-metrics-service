@@ -24,3 +24,4 @@ vendor/
 .idea
 .vscode
 cmd/server/metrics.json
+.DS_Store

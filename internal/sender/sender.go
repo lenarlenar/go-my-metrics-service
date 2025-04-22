@@ -8,13 +8,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/lenarlenar/go-my-metrics-service/internal/agent/flags"
 	"github.com/lenarlenar/go-my-metrics-service/internal/interfaces"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/model"
-	"github.com/lenarlenar/go-my-metrics-service/internal/agent/flags"
 )
 
 type MetricsSender struct {
@@ -52,9 +54,17 @@ func Send(flags flags.Flags, metrics map[string]model.Metrics) {
 	sendPostBatchRequest(flags.Key, updatesURL, metrics, gzipIsSupported)
 }
 
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		return gzip.NewWriter(io.Discard)
+	},
+}
+
 func compressData(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	writer := gzip.NewWriter(&buf)
+	writer := gzipWriterPool.Get().(*gzip.Writer)
+	writer.Reset(&buf)
+
 	_, err := writer.Write(data)
 	if err != nil {
 		return nil, err
@@ -63,6 +73,8 @@ func compressData(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	gzipWriterPool.Put(writer)
+	
 	return buf.Bytes(), nil
 }
 
