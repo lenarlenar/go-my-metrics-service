@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/lenarlenar/go-my-metrics-service/internal/agent/flags"
@@ -13,24 +17,38 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	flags := flags.GetFlags()
 	storage := storage.NewMemStorage()
 
 	tickerPoll := time.NewTicker(flags.PollInterval)
 	defer tickerPoll.Stop()
 	go func() {
-		for range tickerPoll.C {
-			collector.UpdateMetrics(storage)
+		for {
+			select {
+			case <-tickerPoll.C:
+				collector.UpdateMetrics(storage)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
 	if flags.RateLimit == 0 {
 		sender.NewSender(flags.ServerAddress, storage).Run(flags.ReportInterval, flags.Key)
 	} else {
-
 		go func() {
-			for range tickerPoll.C {
-				collector.UpdateExtraMetrics(storage)
+			for {
+				select {
+				case <-tickerPoll.C:
+					collector.UpdateExtraMetrics(storage)
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 
@@ -47,12 +65,27 @@ func main() {
 		log.I().Infof("Запушено воркеров: %d\n", flags.RateLimit)
 
 		go func() {
-			for range tickerReport.C {
-				mainChan <- storage.GetMetrics()
+			for {
+				select {
+				case <-tickerReport.C:
+					select {
+					case mainChan <- storage.GetMetrics():
+						log.I().Info("Метрики успешно отправлены в канал")
+					default:
+						log.I().Warn("Канал переполнен, метрики не отправлены")
+					}
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 
-		select {}
+		<- sigs
+		log.I().Info("Получен сигнал завершения, останавливаемся...")
+		cancel()
+		close(mainChan)
+	 	wg.Wait()
+		log.I().Info("Агент завершил работу")
 	}
 }
 
