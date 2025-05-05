@@ -1,9 +1,10 @@
 package interfaces
 
-import(
+import (
 	"time"
-	"github.com/lenarlenar/go-my-metrics-service/internal/model"
+
 	"github.com/gin-gonic/gin"
+	"github.com/lenarlenar/go-my-metrics-service/internal/model"
 )
 
 type Collector interface {

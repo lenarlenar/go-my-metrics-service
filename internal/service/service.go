@@ -1,3 +1,4 @@
+// Package service содержит реализацию HTTP-хендлеров для работы с метриками.
 package service
 
 import (
@@ -11,17 +12,20 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/model"
 )
 
+// MetricsService предоставляет методы для обработки запросов к метрикам.
 type MetricsService struct {
 	storage interfaces.Storage
 }
 
+// NewService создает новый экземпляр MetricsService с переданным хранилищем.
 func NewService(s interfaces.Storage) *MetricsService {
 	return &MetricsService{storage: s}
 }
 
+// PingHandler проверяет доступность хранилища и возвращает "pong", если всё ок.
 func (s *MetricsService) PingHandler(c *gin.Context) {
 	err := s.storage.Ping()
-	if err != nil  {
+	if err != nil {
 		log.I().Warnf("Ошибка при попытке вызова метода Ping к базе данных: %v", err)
 		c.String(http.StatusInternalServerError, "Internal Server Error")
 		return
@@ -30,6 +34,7 @@ func (s *MetricsService) PingHandler(c *gin.Context) {
 	c.String(http.StatusOK, "pong")
 }
 
+// IndexHandler возвращает HTML-страницу со списком всех метрик.
 func (s *MetricsService) IndexHandler(c *gin.Context) {
 
 	tableRows := ""
@@ -76,6 +81,7 @@ func (s *MetricsService) IndexHandler(c *gin.Context) {
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(htmlContent))
 }
 
+// ValueHandler возвращает значение метрики по имени и типу из URL.
 func (s *MetricsService) ValueHandler(c *gin.Context) {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
@@ -94,6 +100,7 @@ func (s *MetricsService) ValueHandler(c *gin.Context) {
 	}
 }
 
+// UpdateHandler обновляет метрику по имени, типу и значению из URL.
 func (s *MetricsService) UpdateHandler(c *gin.Context) {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
@@ -119,6 +126,7 @@ func (s *MetricsService) UpdateHandler(c *gin.Context) {
 	c.String(http.StatusOK, "Запрос успешно обработан")
 }
 
+// ValueJSONHandler возвращает метрику по JSON-запросу.
 func (s *MetricsService) ValueJSONHandler(c *gin.Context) {
 	var requestMetric model.Metrics
 	if err := c.ShouldBindJSON(&requestMetric); err != nil {
@@ -133,6 +141,7 @@ func (s *MetricsService) ValueJSONHandler(c *gin.Context) {
 	}
 }
 
+// UpdateJSONHandler обновляет метрику из JSON-запроса.
 func (s *MetricsService) UpdateJSONHandler(c *gin.Context) {
 	var metric model.Metrics
 	if err := c.ShouldBindJSON(&metric); err != nil {
@@ -153,6 +162,7 @@ func (s *MetricsService) UpdateJSONHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedMetric)
 }
 
+// UpdateBatchHandler обновляет сразу несколько метрик из JSON-массива.
 func (s *MetricsService) UpdateBatchHandler(c *gin.Context) {
 	metrics := make([]model.Metrics, 0)
 	if err := c.ShouldBindJSON(&metrics); err != nil {

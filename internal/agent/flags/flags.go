@@ -20,7 +20,7 @@ type EnvConfig struct {
 	ServerAddress  string `env:"ADDRESS"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
-	Key   		   string `env:"KEY"`
+	Key            string `env:"KEY"`
 	RateLimit      int    `env:"RATE_LIMIT"`
 }
 
@@ -75,7 +75,7 @@ func GetFlags() Flags {
 		ServerAddress:  *serverAddress,
 		PollInterval:   time.Duration(*pollInterval) * time.Second,
 		ReportInterval: time.Duration(*reportInterval) * time.Second,
-		Key: *key,
-		RateLimit: *rateLimit,
+		Key:            *key,
+		RateLimit:      *rateLimit,
 	}
 }
