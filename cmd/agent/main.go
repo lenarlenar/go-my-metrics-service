@@ -1,64 +1,94 @@
 package main
 
 import (
-	"sync"
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/lenarlenar/go-my-metrics-service/internal/agent/flags"
 	"github.com/lenarlenar/go-my-metrics-service/internal/collector"
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
-	"github.com/lenarlenar/go-my-metrics-service/internal/model"
 	"github.com/lenarlenar/go-my-metrics-service/internal/sender"
 	"github.com/lenarlenar/go-my-metrics-service/internal/storage"
+	"github.com/lenarlenar/go-my-metrics-service/internal/workerpool"
+)
+
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
 )
 
 func main() {
+
+	log.I().Infof("Build version: %s\n", buildVersion)
+	log.I().Infof("Build date: %s\n", buildDate)
+	log.I().Infof("Build commit: %s\n", buildCommit)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	flags := flags.GetFlags()
 	storage := storage.NewMemStorage()
 
 	tickerPoll := time.NewTicker(flags.PollInterval)
 	defer tickerPoll.Stop()
 	go func() {
-		for range tickerPoll.C {
-			collector.UpdateMetrics(storage)
+		for {
+			select {
+			case <-tickerPoll.C:
+				collector.UpdateMetrics(storage)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
 	if flags.RateLimit == 0 {
 		sender.NewSender(flags.ServerAddress, storage).Run(flags.ReportInterval, flags.Key)
 	} else {
-
 		go func() {
-			for range tickerPoll.C {
-				collector.UpdateExtraMetrics(storage)
+			for {
+				select {
+				case <-tickerPoll.C:
+					collector.UpdateExtraMetrics(storage)
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 
-		mainChan := make(chan map[string]model.Metrics, flags.RateLimit)
 		tickerReport := time.NewTicker(flags.ReportInterval)
 		defer tickerReport.Stop()
-		var wg sync.WaitGroup
 
-		log.I().Info("Запускаем воркер...")
-		for i := 0; i < flags.RateLimit; i++ {
-			wg.Add(1)
-			go worker(flags, mainChan, &wg)
-		}
+		pool := workerpool.New(flags, flags.RateLimit)
+		defer pool.Shutdown()
+
 		log.I().Infof("Запушено воркеров: %d\n", flags.RateLimit)
 
 		go func() {
-			for range tickerReport.C {
-				mainChan <- storage.GetMetrics()
+			for {
+				select {
+				case <-tickerReport.C:
+					metrics := storage.GetMetrics()
+					if ok := pool.Submit(metrics); ok {
+						log.I().Info("Метрики успешно отправлены в пул")
+					} else {
+						log.I().Warn("Пул переполнен, метрики не отправлены")
+					}
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 
-		select {}
-	}
-}
-
-func worker(flags flags.Flags, channel chan map[string]model.Metrics, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for data := range channel {
-		sender.Send(flags, data)
+		<-sigs
+		log.I().Info("Получен сигнал завершения, останавливаемся...")
+		cancel()
+		log.I().Info("Агент завершил работу")
 	}
 }
