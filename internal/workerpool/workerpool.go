@@ -9,9 +9,9 @@ import (
 )
 
 type Pool struct {
-	wg      sync.WaitGroup
-	jobs    chan map[string]model.Metrics
-	flags   flags.Flags
+	wg    sync.WaitGroup
+	jobs  chan map[string]model.Metrics
+	flags flags.Flags
 }
 
 // New создает пул с заданным числом воркеров и буфером.

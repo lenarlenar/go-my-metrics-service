@@ -15,7 +15,18 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/workerpool"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
 func main() {
+
+	log.I().Infof("Build version: %s\n", buildVersion)
+	log.I().Infof("Build date: %s\n", buildDate)
+	log.I().Infof("Build commit: %s\n", buildCommit)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sigs := make(chan os.Signal, 1)
@@ -75,7 +86,7 @@ func main() {
 			}
 		}()
 
-		<- sigs
+		<-sigs
 		log.I().Info("Получен сигнал завершения, останавливаемся...")
 		cancel()
 		log.I().Info("Агент завершил работу")
