@@ -1,7 +1,9 @@
 package flags
 
 import (
+	"encoding/json"
 	"flag"
+	"os"
 	"time"
 
 	"github.com/caarlos0/env"
@@ -9,15 +11,26 @@ import (
 )
 
 const (
+	defaultConfigPath     = ""
 	defaultServerAddress  = "localhost:8080"
 	defaultReportInterval = 10
 	defaultPollInterval   = 2
 	defaultKey            = ""
 	defaultRateLimit      = 3
-	DefaultCryptoPath     = ""
+	defaultCryptoPath     = ""
 )
 
+type JSONConfig struct {
+	ServerAddress  string `json:"address"`
+	ReportInterval int    `json:"report_interval"`
+	PollInterval   int    `json:"poll_interval"`
+	Key            string `json:"key"`
+	RateLimit      int    `json:"rate_limit"`
+	CryptoPath     string `json:"crypto_key"`
+}
+
 type EnvConfig struct {
+	ConfigPath     string `env:"CONFIG"`
 	ServerAddress  string `env:"ADDRESS"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
@@ -46,39 +59,89 @@ func GetFlags() Flags {
 	pollInterval := flag.Int("p", defaultPollInterval, "Интервал локального обновления данных")
 	key := flag.String("k", defaultKey, "Ключ для шифрования")
 	rateLimit := flag.Int("l", defaultRateLimit, "Количество одновременно исходящих запросов на сервер")
+	cryptoPath := flag.String("crypto-key", defaultCryptoPath, "Путь до файла с приватным ключом")
+	configPath := flag.String("c", defaultConfigPath, "Путь к конфиг-файлу JSON")
 	flag.Parse()
 
-	if envConfig.ServerAddress != "" {
-		*serverAddress = envConfig.ServerAddress
+	jsonConfig := &JSONConfig{}
+	if envConfig.ConfigPath != "" {
+		*configPath = envConfig.ConfigPath
 	}
-
-	if envConfig.ReportInterval > 0 {
-		*reportInterval = envConfig.ReportInterval
-	} else if *reportInterval <= 0 {
-		*reportInterval = 10
-	}
-
-	if envConfig.PollInterval > 0 {
-		*pollInterval = envConfig.PollInterval
-	} else if *pollInterval <= 0 {
-		*pollInterval = 2
-	}
-
-	if envConfig.Key != "" {
-		*key = envConfig.Key
-	}
-
-	if envConfig.RateLimit > 0 {
-		*rateLimit = envConfig.RateLimit
-	} else if *rateLimit < 0 {
-		*rateLimit = 0
+	if *configPath != "" {
+		cfg, err := loadJSONConfig(*configPath)
+		if err == nil {
+			jsonConfig = cfg
+		}
 	}
 
 	return Flags{
-		ServerAddress:  *serverAddress,
-		PollInterval:   time.Duration(*pollInterval) * time.Second,
-		ReportInterval: time.Duration(*reportInterval) * time.Second,
-		Key:            *key,
-		RateLimit:      *rateLimit,
+		ServerAddress: coalesceString(
+			envConfig.ServerAddress,
+			*serverAddress,
+			jsonConfig.ServerAddress,
+			defaultServerAddress,
+		),
+		ReportInterval: time.Duration(coalesceInt(
+			envConfig.ReportInterval,
+			*reportInterval,
+			jsonConfig.ReportInterval,
+			defaultReportInterval,
+		)) * time.Second,
+		PollInterval: time.Duration(coalesceInt(
+			envConfig.PollInterval,
+			*pollInterval,
+			jsonConfig.PollInterval,
+			defaultPollInterval,
+		)) * time.Second,
+		Key: coalesceString(
+			envConfig.Key,
+			*key,
+			jsonConfig.Key,
+			defaultKey,
+		),
+		RateLimit: coalesceInt(
+			envConfig.RateLimit,
+			*rateLimit,
+			jsonConfig.RateLimit,
+			defaultRateLimit,
+		),
+		CryptoPath: coalesceString(
+			envConfig.CryptoPath,
+			*cryptoPath,
+			jsonConfig.CryptoPath,
+			defaultCryptoPath,
+		),
 	}
+}
+
+func loadJSONConfig(path string) (*JSONConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg JSONConfig
+	err = json.Unmarshal(data, &cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func coalesceString(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func coalesceInt(values ...int) int {
+	for _, v := range values {
+		if v > 0 {
+			return v
+		}
+	}
+	return 0
 }

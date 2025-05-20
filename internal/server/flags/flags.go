@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"encoding/json"
 	"flag"
 	"os"
 	"time"
@@ -10,6 +11,7 @@ import (
 )
 
 const (
+	DefaultConfigPath       = ""
 	DefaultServerAddress    = "localhost:8080"
 	DefaultStoreIntervalSec = 300
 	DefaultFileStoragePath  = "" //"metrics.json"
@@ -18,6 +20,15 @@ const (
 	DefaultKey              = ""
 	DefaultCryptoPath       = ""
 )
+
+type JSONConfig struct {
+	ServerAddress   string `json:"address"`
+	StoreInterval   int    `json:"store_interval"`
+	FileStoragePath string `json:"store_file"`
+	Restore         bool   `json:"restore"`
+	DatabaseDSN     string `json:"database_dsn"`
+	CryptoPath      string `json:"crypto_key"`
+}
 
 type Config struct {
 	ServerAddress   string        // адрес сервера, по умолчанию "localhost:8080"
@@ -30,6 +41,7 @@ type Config struct {
 }
 
 type EnvConfig struct {
+	ConfigPath      string `env:"CONFIG"`
 	ServerAddress   string `env:"ADDRESS"`
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
@@ -45,47 +57,134 @@ func Parse() Config {
 		log.I().Fatalw(err.Error(), "event", "parse env")
 	}
 
-	var config Config
-	storeInterval := *flag.Int("i", DefaultStoreIntervalSec, "Интервал сохранения в файл")
-	flag.StringVar(&config.ServerAddress, "a", DefaultServerAddress, "Адрес сервера")
-	flag.StringVar(&config.FileStoragePath, "f", DefaultFileStoragePath, "Путь к файлу")
-	flag.BoolVar(&config.Restore, "r", DefaultRestore, "Загружать или нет ранее сохраненные файлы")
-	flag.StringVar(&config.DatabaseDSN, "d", DefaultDatabaseDSN, "Загружать или нет ранее сохраненные файлы")
-	flag.StringVar(&config.Key, "k", DefaultKey, "Ключ для шифрования")
-	flag.StringVar(&config.Key, "crypto-key", DefaultCryptoPath, "Путь до файла с приватным ключом")
+	storeInterval := flag.Int("i", DefaultStoreIntervalSec, "Интервал сохранения в файл")
+	serverAddress := flag.String("a", DefaultServerAddress, "Адрес сервера")
+	fileStoragePath := flag.String("f", DefaultFileStoragePath, "Путь к файлу")
+	restore := flag.Bool("r", DefaultRestore, "Загружать или нет ранее сохраненные файлы")
+	databaseDSN := flag.String("d", DefaultDatabaseDSN, "Загружать или нет ранее сохраненные файлы")
+	key := flag.String("k", DefaultKey, "Ключ для шифрования")
+	cryptoPath := flag.String("crypto-key", DefaultCryptoPath, "Путь до файла с приватным ключом")
+	configPath := flag.String("c", DefaultConfigPath, "Путь до файла с приватным ключом")
 	flag.Parse()
 
-	if envConfig.ServerAddress != "" {
-		config.ServerAddress = envConfig.ServerAddress
+	jsonConfig := &JSONConfig{}
+	if envConfig.ConfigPath != "" {
+		*configPath = envConfig.ConfigPath
+	}
+	if *configPath != "" {
+		cfg, err := loadJSONConfig(*configPath)
+		if err == nil {
+			jsonConfig = cfg
+		}
 	}
 
-	if envConfig.Key != "" {
-		config.Key = envConfig.Key
+	return Config{
+		ServerAddress: coalesceString(
+			envConfig.ServerAddress,
+			*serverAddress,
+			func() string { //иначе линтер ругается
+				if jsonConfig != nil {
+					return jsonConfig.ServerAddress
+				}
+				return ""
+			}(),
+			DefaultServerAddress,
+		),
+		StoreInterval: time.Duration(coalesceInt(
+			envConfig.StoreInterval,
+			*storeInterval,
+			jsonConfig.StoreInterval,
+			DefaultStoreIntervalSec,
+		)) * time.Second,
+		FileStoragePath: coalesceString(
+			envConfig.FileStoragePath,
+			*fileStoragePath,
+			jsonConfig.FileStoragePath,
+			DefaultFileStoragePath,
+		),
+		Restore: coalesceBoolPtr(
+			lookupBoolEnv("RESTORE", envConfig.Restore),
+			flagIsPassed("r", *restore),
+			jsonConfig != nil && jsonConfig.Restore,
+			DefaultRestore,
+		),
+		DatabaseDSN: coalesceString(
+			envConfig.DatabaseDSN,
+			*databaseDSN,
+			jsonConfig.DatabaseDSN,
+			DefaultDatabaseDSN,
+		),
+		Key: coalesceString(
+			envConfig.Key,
+			*key,
+			DefaultKey,
+			DefaultKey,
+		),
+		CryptoPath: coalesceString(
+			envConfig.CryptoPath,
+			*cryptoPath,
+			jsonConfig.CryptoPath,
+			DefaultCryptoPath,
+		),
+	}
+}
+
+func loadJSONConfig(path string) (*JSONConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 
-	if envConfig.CryptoPath != "" {
-		config.Key = envConfig.CryptoPath
+	var cfg JSONConfig
+	err = json.Unmarshal(data, &cfg)
+	if err != nil {
+		return nil, err
 	}
+	return &cfg, nil
+}
 
-	if _, isSet := os.LookupEnv("STORE_INTERVAL"); isSet {
-		config.StoreInterval = time.Duration(envConfig.StoreInterval) * time.Second
-	} else if storeInterval < 0 {
-		config.StoreInterval = time.Duration(DefaultStoreIntervalSec) * time.Second
-	} else {
-		config.StoreInterval = time.Duration(storeInterval) * time.Second
+func coalesceString(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
 	}
+	return ""
+}
 
-	if envConfig.FileStoragePath != "" {
-		config.FileStoragePath = envConfig.FileStoragePath
+func coalesceInt(values ...int) int {
+	for _, v := range values {
+		if v > 0 {
+			return v
+		}
 	}
+	return 0
+}
 
-	if _, isSet := os.LookupEnv("RESTORE"); isSet {
-		config.Restore = envConfig.Restore
+func coalesceBoolPtr(values ...bool) bool {
+	for _, v := range values {
+		return v
 	}
+	return false
+}
 
-	if envConfig.DatabaseDSN != "" {
-		config.DatabaseDSN = envConfig.DatabaseDSN
+func lookupBoolEnv(name string, val bool) bool {
+	_, found := os.LookupEnv(name)
+	if found {
+		return val
 	}
+	return false
+}
 
-	return config
+func flagIsPassed(name string, val bool) bool {
+	visited := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			visited = true
+		}
+	})
+	if visited {
+		return val
+	}
+	return false
 }
