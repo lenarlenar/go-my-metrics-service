@@ -16,7 +16,18 @@ import (
 	"github.com/lenarlenar/go-my-metrics-service/internal/storage"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
 func main() {
+
+	log.I().Infof("Build version: %s\n", buildVersion)
+	log.I().Infof("Build date: %s\n", buildDate)
+	log.I().Infof("Build commit: %s\n", buildCommit)
+
 	go func() {
 		log.I().Infoln(
 			"Starting debug/pprof server",
