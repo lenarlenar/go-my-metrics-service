@@ -30,7 +30,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	flags := flags.GetFlags()
 	storage := storage.NewMemStorage()
@@ -49,7 +49,7 @@ func main() {
 	}()
 
 	if flags.RateLimit == 0 {
-		sender.NewSender(flags.ServerAddress, storage).Run(flags.ReportInterval, flags.Key)
+		sender.NewSender(flags.ServerAddress, storage).Run(flags)
 	} else {
 		go func() {
 			for {

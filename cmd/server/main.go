@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -42,7 +46,17 @@ func main() {
 	config := flags.Parse()
 	storage := storage.NewStorage(config)
 	metricsService := service.NewService(storage)
-	router := router.New(config, metricsService)
+
+	var rsaKey *rsa.PrivateKey
+	if config.CryptoPath != "" {
+		var err error
+		rsaKey, err = loadPrivateKey(config.CryptoPath)
+		if err != nil {
+			log.I().Fatalf("ошибка загрузки приватного ключа: %v", err)
+		}
+	}
+
+	router := router.New(config, metricsService, rsaKey)
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -60,7 +74,7 @@ func main() {
 	}()
 
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	<-stop
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -68,4 +82,18 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.I().Fatalw(err.Error(), "event", "shutdown server")
 	}
+}
+
+func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
+	keyData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(keyData)
+	if block == nil || (block.Type != "RSA PRIVATE KEY" && block.Type != "PRIVATE KEY") {
+		return nil, errors.New("неправильный формат ключа")
+	}
+
+	return x509.ParsePKCS1PrivateKey(block.Bytes)
 }

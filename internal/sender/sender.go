@@ -4,11 +4,17 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/hmac"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
@@ -33,17 +39,25 @@ func NewSender(serverAddress string, memStorage interfaces.Storage) *MetricsSend
 	return &MetricsSender{baseURL: baseURL, updateURL: updateURL, updatesURL: updatesURL, storage: memStorage}
 }
 
-func (m *MetricsSender) Run(reportInterval time.Duration, key string) {
+func (m *MetricsSender) Run(flags flags.Flags) {
 
 	gzipIsSupported := gzipIsSupported(m.baseURL)
 	log.I().Infof("Поддержка gzip: %v\n", gzipIsSupported)
+	var rsaPub *rsa.PublicKey
+	if flags.CryptoPath != "" {
+		var err error
+		rsaPub, err = loadPublicKey(flags.CryptoPath)
+		if err != nil {
+			log.I().Fatalf("ошибка загрузки RSA ключа: %v", err)
+		}
+	}
 	for {
 		// for _, model := range m.storage.GetMetrics() {
 		// 	go sendPostRequest(m.updateURL, model)
 		// 	go sendPostWithJSONRequest(m.updateURL, model, gzipIsSupported)
 		// }
-		go sendPostBatchRequest(key, m.updatesURL, m.storage.GetMetrics(), gzipIsSupported)
-		time.Sleep(reportInterval)
+		go sendPostBatchRequest(flags.Key, m.updatesURL, m.storage.GetMetrics(), gzipIsSupported, rsaPub)
+		time.Sleep(flags.ReportInterval)
 	}
 }
 
@@ -51,7 +65,40 @@ func Send(flags flags.Flags, metrics map[string]model.Metrics) {
 	baseURL := fmt.Sprintf("http://%s", flags.ServerAddress)
 	updatesURL := fmt.Sprintf("%s/updates/", baseURL)
 	gzipIsSupported := gzipIsSupported(baseURL)
-	sendPostBatchRequest(flags.Key, updatesURL, metrics, gzipIsSupported)
+	var rsaPub *rsa.PublicKey
+	if flags.CryptoPath != "" {
+		var err error
+		rsaPub, err = loadPublicKey(flags.CryptoPath)
+		if err != nil {
+			log.I().Fatalf("ошибка загрузки RSA ключа: %v", err)
+		}
+	}
+
+	sendPostBatchRequest(flags.Key, updatesURL, metrics, gzipIsSupported, rsaPub)
+}
+
+func loadPublicKey(path string) (*rsa.PublicKey, error) {
+	keyData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(keyData)
+	if block == nil || block.Type != "PUBLIC KEY" {
+		return nil, errors.New("неверный формат публичного ключа")
+	}
+
+	pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	pubKey, ok := pubInterface.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("это не RSA ключ")
+	}
+
+	return pubKey, nil
 }
 
 var gzipWriterPool = sync.Pool{
@@ -147,11 +194,18 @@ func calculateHash(data, key []byte) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func sendPostBatchRequest(key string, url string, metrics map[string]model.Metrics, compress bool) {
+func sendPostBatchRequest(
+	key string,
+	url string,
+	metrics map[string]model.Metrics,
+	compress bool,
+	rsaPub *rsa.PublicKey,
+) {
 	metricsSlice := make([]model.Metrics, 0, len(metrics))
 	for _, m := range metrics {
 		metricsSlice = append(metricsSlice, m)
 	}
+
 	jsonModel, err := json.Marshal(metricsSlice)
 	if err != nil {
 		log.I().Warnf("ошибка сериализатора: %v", err)
@@ -159,26 +213,46 @@ func sendPostBatchRequest(key string, url string, metrics map[string]model.Metri
 	}
 
 	client := resty.New()
-	request := client.R().SetHeader("Content-Type", "application/json")
+	request := client.R()
 
-	if key != "" {
+	var bodyToSend []byte
+
+	switch {
+	case compress && rsaPub == nil: //gzip только если нет RSA
+		request.SetHeader("Content-Encoding", "gzip")
+		request.SetHeader("Content-Type", "application/json")
+
+		compressedData, err := compressData(jsonModel)
+		if err != nil {
+			log.I().Warnf("ошибка при сжатии: %v", err)
+			return
+		}
+		bodyToSend = compressedData
+
+	case rsaPub != nil: // шифрование RSA, без gzip
+		request.SetHeader("Content-Type", "application/octet-stream")
+
+		encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, rsaPub, jsonModel)
+		if err != nil {
+			log.I().Warnf("ошибка при шифровании: %v", err)
+			return
+		}
+		bodyToSend = encrypted
+
+	default:
+		request.SetHeader("Content-Type", "application/json")
+		bodyToSend = jsonModel
+	}
+
+	if key != "" && rsaPub == nil && !compress { //хеш только если нет RSA и gzip
 		log.I().Info("secretKey: " + key)
 		hash := calculateHash(jsonModel, []byte(key))
 		log.I().Info("HashSHA256: " + hash)
 		request.SetHeader("HashSHA256", hash)
 	}
 
-	if compress {
-		request.SetHeader("Content-Encoding", "gzip")
-		compressedData, err := compressData(jsonModel)
-		if err != nil {
-			log.I().Warnf("ошибка при попытке сжать: %v\n", err)
-			return
-		}
-		request.SetBody(compressedData)
-	} else {
-		request.SetBody(jsonModel)
-	}
+	request.SetBody(bodyToSend)
+
 	resp, err := postWithRetry(request, url)
 	if err != nil {
 		log.I().Warnf("ошибка при отправке запроса: %v", err)

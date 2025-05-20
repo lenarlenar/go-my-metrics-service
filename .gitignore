@@ -25,3 +25,6 @@ vendor/
 .vscode
 cmd/server/metrics.json
 .DS_Store
+private.pem
+.gitignore
+public.pem
