@@ -14,6 +14,7 @@ const (
 	defaultPollInterval   = 2
 	defaultKey            = ""
 	defaultRateLimit      = 3
+	DefaultCryptoPath     = ""
 )
 
 type EnvConfig struct {
@@ -22,6 +23,7 @@ type EnvConfig struct {
 	PollInterval   int    `env:"POLL_INTERVAL"`
 	Key            string `env:"KEY"`
 	RateLimit      int    `env:"RATE_LIMIT"`
+	CryptoPath     string `env:"CRYPTO_KEY"`
 }
 
 type Flags struct {
@@ -30,6 +32,7 @@ type Flags struct {
 	ReportInterval time.Duration
 	Key            string
 	RateLimit      int
+	CryptoPath     string
 }
 
 func GetFlags() Flags {
