@@ -16,6 +16,7 @@ const (
 	DefaultRestore          = true
 	DefaultDatabaseDSN      = "" //"host=localhost port=5432 user=postgres password=admin dbname=postgres sslmode=disable"
 	DefaultKey              = ""
+	DefaultCryptoPath       = ""
 )
 
 type Config struct {
@@ -25,6 +26,7 @@ type Config struct {
 	Restore         bool          // восстанавливать метрики из файла при старте
 	DatabaseDSN     string        // строка подключения к БД PostgreSQL
 	Key             string        // ключ для HMAC-подписи
+	CryptoPath      string        // путь до файла с приватным ключом
 }
 
 type EnvConfig struct {
@@ -34,6 +36,7 @@ type EnvConfig struct {
 	Restore         bool   `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 	Key             string `env:"KEY"`
+	CryptoPath      string `env:"CRYPTO_KEY"`
 }
 
 func Parse() Config {
@@ -49,6 +52,7 @@ func Parse() Config {
 	flag.BoolVar(&config.Restore, "r", DefaultRestore, "Загружать или нет ранее сохраненные файлы")
 	flag.StringVar(&config.DatabaseDSN, "d", DefaultDatabaseDSN, "Загружать или нет ранее сохраненные файлы")
 	flag.StringVar(&config.Key, "k", DefaultKey, "Ключ для шифрования")
+	flag.StringVar(&config.Key, "crypto-key", DefaultCryptoPath, "Путь до файла с приватным ключом")
 	flag.Parse()
 
 	if envConfig.ServerAddress != "" {
@@ -57,6 +61,10 @@ func Parse() Config {
 
 	if envConfig.Key != "" {
 		config.Key = envConfig.Key
+	}
+
+	if envConfig.CryptoPath != "" {
+		config.Key = envConfig.CryptoPath
 	}
 
 	if _, isSet := os.LookupEnv("STORE_INTERVAL"); isSet {
