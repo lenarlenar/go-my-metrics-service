@@ -37,7 +37,7 @@ func RSADecrypt(privKey *rsa.PrivateKey) gin.HandlerFunc {
 		// Заменяем тело запроса на расшифрованные данные
 		c.Request.Body = io.NopCloser(bytes.NewReader(decrypted))
 		c.Request.ContentLength = int64(len(decrypted))
-		c.Request.Header.Set("Content-Type", "application/json") // важно для дальнейшей обработки
+		c.Request.Header.Set("Content-Type", "application/json")
 
 		c.Next()
 	}

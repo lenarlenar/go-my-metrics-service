@@ -218,26 +218,26 @@ func sendPostBatchRequest(
 	var bodyToSend []byte
 
 	switch {
-	case compress && rsaPub == nil: //gzip только если НЕТ RSA
-		request.SetHeader("Content-Encoding", "gzip")         // 🔹
-		request.SetHeader("Content-Type", "application/json") // 🔹
+	case compress && rsaPub == nil: //gzip только если нет RSA
+		request.SetHeader("Content-Encoding", "gzip")
+		request.SetHeader("Content-Type", "application/json")
 
-		compressedData, err := compressData(jsonModel) // 🔹
+		compressedData, err := compressData(jsonModel)
 		if err != nil {
-			log.I().Warnf("ошибка при сжатии: %v", err) // 🔹
+			log.I().Warnf("ошибка при сжатии: %v", err)
 			return
 		}
-		bodyToSend = compressedData // 🔹
+		bodyToSend = compressedData
 
 	case rsaPub != nil: // шифрование RSA, без gzip
-		request.SetHeader("Content-Type", "application/octet-stream") // 🔹
+		request.SetHeader("Content-Type", "application/octet-stream")
 
-		encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, rsaPub, jsonModel) // 🔹
+		encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, rsaPub, jsonModel)
 		if err != nil {
-			log.I().Warnf("ошибка при шифровании: %v", err) // 🔹
+			log.I().Warnf("ошибка при шифровании: %v", err)
 			return
 		}
-		bodyToSend = encrypted // 🔹
+		bodyToSend = encrypted
 
 	default:
 		request.SetHeader("Content-Type", "application/json")
