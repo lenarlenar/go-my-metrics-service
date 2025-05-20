@@ -2,6 +2,8 @@
 package router
 
 import (
+	"crypto/rsa"
+
 	"github.com/gin-gonic/gin"
 	"github.com/lenarlenar/go-my-metrics-service/internal/middleware"
 	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
@@ -9,7 +11,7 @@ import (
 )
 
 // New создает новый экземпляр роутера с зарегистрированными маршрутами и middleware.
-func New(config flags.Config, metricsService *service.MetricsService) *gin.Engine {
+func New(config flags.Config, metricsService *service.MetricsService, rsaKey *rsa.PrivateKey) *gin.Engine {
 	router := gin.New()
 
 	// Подключение middleware: логирование и gzip
@@ -20,6 +22,7 @@ func New(config flags.Config, metricsService *service.MetricsService) *gin.Engin
 	// Группа роутов с проверкой подписи
 	updatesGroup := router.Group("/updates")
 	updatesGroup.Use(middleware.CheckHash(config.Key))
+	updatesGroup.Use(middleware.RSADecrypt(rsaKey))
 	{
 		updatesGroup.POST("/", metricsService.UpdateBatchHandler)
 	}
