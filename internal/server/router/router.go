@@ -18,6 +18,7 @@ func New(config flags.Config, metricsService *service.MetricsService, rsaKey *rs
 	router.Use(middleware.Logger())
 	router.Use(middleware.GzipCompression())
 	router.Use(middleware.GzipUnpack())
+	router.Use(middleware.TrustedSubnet(config.TrustedSubnet))
 
 	// Группа роутов с проверкой подписи
 	updatesGroup := router.Group("/updates")
