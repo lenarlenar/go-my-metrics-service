@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -15,9 +16,13 @@ import (
 
 	"github.com/lenarlenar/go-my-metrics-service/internal/log"
 	"github.com/lenarlenar/go-my-metrics-service/internal/server/flags"
+	"github.com/lenarlenar/go-my-metrics-service/internal/server/grpcserver"
 	"github.com/lenarlenar/go-my-metrics-service/internal/server/router"
 	"github.com/lenarlenar/go-my-metrics-service/internal/service"
 	"github.com/lenarlenar/go-my-metrics-service/internal/storage"
+	pb "github.com/lenarlenar/go-my-metrics-service/proto/metrics"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 var (
@@ -52,7 +57,7 @@ func main() {
 		var err error
 		rsaKey, err = loadPrivateKey(config.CryptoPath)
 		if err != nil {
-			log.I().Fatalf("ошибка загрузки приватного ключа: %v", err)
+			log.I().Fatalf("failed to load private key: %v", err)
 		}
 	}
 
@@ -73,6 +78,24 @@ func main() {
 		}
 	}()
 
+	if config.GRPCAddress != "" {
+		go func() {
+			lis, err := net.Listen("tcp", config.GRPCAddress)
+			if err != nil {
+				log.I().Fatalf("failed to start gRPC listener: %v", err)
+			}
+
+			grpcServer := grpc.NewServer()
+			reflection.Register(grpcServer)
+			pb.RegisterMetricsServiceServer(grpcServer, grpcserver.NewServer(storage))
+
+			log.I().Infoln("Starting gRPC server", "addr", config.GRPCAddress)
+			if err := grpcServer.Serve(lis); err != nil {
+				log.I().Fatalw(err.Error(), "event", "start gRPC server")
+			}
+		}()
+	}
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	<-stop
@@ -92,7 +115,7 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 
 	block, _ := pem.Decode(keyData)
 	if block == nil || (block.Type != "RSA PRIVATE KEY" && block.Type != "PRIVATE KEY") {
-		return nil, errors.New("неправильный формат ключа")
+		return nil, errors.New("invalid key format")
 	}
 
 	return x509.ParsePKCS1PrivateKey(block.Bytes)

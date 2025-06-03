@@ -63,6 +63,12 @@ func (m *MetricsSender) Run(flags flags.Flags) {
 }
 
 func Send(flags flags.Flags, metrics map[string]model.Metrics) {
+
+	if flags.GRPCAddress != "" {
+		SendGRPC(flags, metrics)
+		return
+	}
+
 	baseURL := fmt.Sprintf("http://%s", flags.ServerAddress)
 	updatesURL := fmt.Sprintf("%s/updates/", baseURL)
 	gzipIsSupported := gzipIsSupported(baseURL)

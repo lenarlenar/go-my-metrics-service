@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package metrics;
+
+option go_package = "proto/metrics";
+
+import "google/protobuf/empty.proto";
+
+// Сообщение метрики, аналогично структуре model.Metrics
+message Metric {
+  string id = 1;               // Название метрики
+  string type = 2;             // Тип: "gauge" или "counter"
+  double value = 3;            // Значение для gauge
+  int64 delta = 4;             // Изменение счетчика для counter
+}
+
+// Ответ для метода Value, содержит одну метрику
+message MetricResponse {
+  Metric metric = 1;
+}
+
+// Запрос по имени метрики и типу (для ValueHandler)
+message MetricRequestByPath {
+  string type = 1; // Тип: "gauge" или "counter"
+  string name = 2; // Имя метрики
+}
+
+// Запрос и ответ для batch-обновлений
+message MetricsBatch {
+  repeated Metric metrics = 1; // Массив метрик
+}
+
+// gRPC-сервис, соответствующий HTTP-маршрутам
+service MetricsService {
+  // Пинг базы данных — соответствует GET /ping
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // Получить значение метрики по типу и имени — соответствует GET /value/:type/:name
+  rpc GetMetric(MetricRequestByPath) returns (MetricResponse);
+
+  // Получить значение метрики по JSON — соответствует POST /value/
+  rpc GetMetricByJSON(Metric) returns (MetricResponse);
+
+  // Обновить метрику по JSON — соответствует POST /update/
+  rpc UpdateMetric(Metric) returns (MetricResponse);
+
+  // Обновить несколько метрик одним запросом — соответствует POST /updates/
+  rpc UpdateMetricsBatch(MetricsBatch) returns (google.protobuf.Empty);
+}
