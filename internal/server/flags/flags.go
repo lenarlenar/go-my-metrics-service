@@ -19,6 +19,8 @@ const (
 	DefaultDatabaseDSN      = "" //"host=localhost port=5432 user=postgres password=admin dbname=postgres sslmode=disable"
 	DefaultKey              = ""
 	DefaultCryptoPath       = ""
+	DefaultTrustedSubnet    = ""
+	DefaultGRPCAddress      = "localhost:9090"
 )
 
 type JSONConfig struct {
@@ -28,6 +30,8 @@ type JSONConfig struct {
 	Restore         bool   `json:"restore"`
 	DatabaseDSN     string `json:"database_dsn"`
 	CryptoPath      string `json:"crypto_key"`
+	TrustedSubnet   string `json:"trusted_subnet"`
+	GRPCAddress     string `json:"grpc_address"`
 }
 
 type Config struct {
@@ -38,6 +42,8 @@ type Config struct {
 	DatabaseDSN     string        // строка подключения к БД PostgreSQL
 	Key             string        // ключ для HMAC-подписи
 	CryptoPath      string        // путь до файла с приватным ключом
+	TrustedSubnet   string        // доверенная подсеть в формате CIDR
+	GRPCAddress     string        // адрес сервера GRPC
 }
 
 type EnvConfig struct {
@@ -49,6 +55,8 @@ type EnvConfig struct {
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 	Key             string `env:"KEY"`
 	CryptoPath      string `env:"CRYPTO_KEY"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET"`
+	GRPCAddress     string `env:"GRPC_ADDRESS"`
 }
 
 func Parse() Config {
@@ -65,6 +73,8 @@ func Parse() Config {
 	key := flag.String("k", DefaultKey, "Ключ для шифрования")
 	cryptoPath := flag.String("crypto-key", DefaultCryptoPath, "Путь до файла с приватным ключом")
 	configPath := flag.String("c", DefaultConfigPath, "Путь до файла с приватным ключом")
+	trustedSubnet := flag.String("t", DefaultTrustedSubnet, "Доверенная подсеть в формате CIDR")
+	grpcAddress := flag.String("g", DefaultGRPCAddress, "Aдрес сервера GRPC")
 	flag.Parse()
 
 	jsonConfig := &JSONConfig{}
@@ -125,6 +135,18 @@ func Parse() Config {
 			*cryptoPath,
 			jsonConfig.CryptoPath,
 			DefaultCryptoPath,
+		),
+		TrustedSubnet: coalesceString(
+			envConfig.TrustedSubnet,
+			*trustedSubnet,
+			jsonConfig.TrustedSubnet,
+			DefaultTrustedSubnet,
+		),
+		GRPCAddress: coalesceString(
+			envConfig.GRPCAddress,
+			*grpcAddress,
+			jsonConfig.GRPCAddress,
+			DefaultGRPCAddress,
 		),
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -62,6 +63,12 @@ func (m *MetricsSender) Run(flags flags.Flags) {
 }
 
 func Send(flags flags.Flags, metrics map[string]model.Metrics) {
+
+	if flags.GRPCAddress != "" {
+		SendGRPC(flags, metrics)
+		return
+	}
+
 	baseURL := fmt.Sprintf("http://%s", flags.ServerAddress)
 	updatesURL := fmt.Sprintf("%s/updates/", baseURL)
 	gzipIsSupported := gzipIsSupported(baseURL)
@@ -251,6 +258,7 @@ func sendPostBatchRequest(
 		request.SetHeader("HashSHA256", hash)
 	}
 
+	request.SetHeader("X-Real-IP", getLocalIP())
 	request.SetBody(bodyToSend)
 
 	resp, err := postWithRetry(request, url)
@@ -259,6 +267,16 @@ func sendPostBatchRequest(
 	} else {
 		log.I().Infof("ответ от %s: %d %s\n", url, resp.StatusCode(), resp)
 	}
+}
+
+func getLocalIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
 }
 
 const retryCount = 3

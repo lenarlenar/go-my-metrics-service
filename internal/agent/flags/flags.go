@@ -18,6 +18,7 @@ const (
 	defaultKey            = ""
 	defaultRateLimit      = 3
 	defaultCryptoPath     = ""
+	defaultGRPCAddress    = "localhost:9090"
 )
 
 type JSONConfig struct {
@@ -27,6 +28,7 @@ type JSONConfig struct {
 	Key            string `json:"key"`
 	RateLimit      int    `json:"rate_limit"`
 	CryptoPath     string `json:"crypto_key"`
+	GRPCAddress    string `json:"grpc_address"`
 }
 
 type EnvConfig struct {
@@ -37,6 +39,7 @@ type EnvConfig struct {
 	Key            string `env:"KEY"`
 	RateLimit      int    `env:"RATE_LIMIT"`
 	CryptoPath     string `env:"CRYPTO_KEY"`
+	GRPCAddress    string `env:"GRPC_ADDRESS"`
 }
 
 type Flags struct {
@@ -46,6 +49,7 @@ type Flags struct {
 	Key            string
 	RateLimit      int
 	CryptoPath     string
+	GRPCAddress    string
 }
 
 func GetFlags() Flags {
@@ -61,6 +65,7 @@ func GetFlags() Flags {
 	rateLimit := flag.Int("l", defaultRateLimit, "Количество одновременно исходящих запросов на сервер")
 	cryptoPath := flag.String("crypto-key", defaultCryptoPath, "Путь до файла с приватным ключом")
 	configPath := flag.String("c", defaultConfigPath, "Путь к конфиг-файлу JSON")
+	grpcAddress := flag.String("g", defaultGRPCAddress, "Aдрес сервера GRPC")
 	flag.Parse()
 
 	jsonConfig := &JSONConfig{}
@@ -110,6 +115,12 @@ func GetFlags() Flags {
 			*cryptoPath,
 			jsonConfig.CryptoPath,
 			defaultCryptoPath,
+		),
+		GRPCAddress: coalesceString(
+			envConfig.GRPCAddress,
+			*grpcAddress,
+			jsonConfig.GRPCAddress,
+			defaultGRPCAddress,
 		),
 	}
 }
